@@ -1,0 +1,23 @@
+CREATE TABLE sales (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    external_id VARCHAR(64) NOT NULL,
+    campaign_id INT UNSIGNED NOT NULL,
+    seller_id INT UNSIGNED NOT NULL,
+    product_id INT UNSIGNED NOT NULL,
+    quantity INT UNSIGNED NOT NULL,
+    unit_value DECIMAL(12, 2) NOT NULL,
+    status ENUM('approved', 'canceled') NOT NULL DEFAULT 'approved',
+    created_by_user_id INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    canceled_at DATETIME NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_sales_external_id (external_id),
+    KEY idx_sales_seller_created_at (seller_id, created_at),
+    KEY idx_sales_campaign_id (campaign_id),
+    KEY idx_sales_product_id (product_id),
+    KEY idx_sales_created_by_user_id (created_by_user_id),
+    CONSTRAINT fk_sales_campaign_id FOREIGN KEY (campaign_id) REFERENCES campaigns (id),
+    CONSTRAINT fk_sales_seller_id FOREIGN KEY (seller_id) REFERENCES users (id),
+    CONSTRAINT fk_sales_product_id FOREIGN KEY (product_id) REFERENCES products (id),
+    CONSTRAINT fk_sales_created_by_user_id FOREIGN KEY (created_by_user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

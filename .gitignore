@@ -1,0 +1,10 @@
+.env
+.env.local
+backend/.env
+backend/vendor/
+backend/.phpunit.cache/
+frontend/node_modules/
+frontend/dist/
+.idea/
+.vscode/
+.DS_Store
