@@ -93,9 +93,12 @@ entrada `credit` no ledger e incrementa `budget_used`. O `UPDATE` da verba carre
 `WHERE budget_used + ? <= budget_total` como segunda barreira: se ele não afetar
 nenhuma linha, a transação inteira volta atrás.
 
-O cancelamento trava a campanha primeiro, na mesma ordem do lançamento. Ordem de lock
-igual nos dois caminhos é o que evita deadlock entre uma venda e um cancelamento
-concorrentes. O estorno lê os pontos da entrada de crédito no ledger, não de
+No cancelamento a venda é lida antes da campanha, mas essa leitura é um consistent
+read do InnoDB: ela não adquire lock, serve só para descobrir a que campanha a venda
+pertence. O primeiro lock de escrita continua sendo o da campanha nos dois caminhos, e
+só depois vem o da linha da venda. É essa ordem efetiva, igual dos dois lados, que
+evita deadlock entre uma venda e um cancelamento concorrentes. O estorno lê os pontos
+da entrada de crédito no ledger, não de
 `products.points_per_unit`: o produto pode ter sido editado depois da venda, e
 recalcular devolveria à campanha um valor diferente do que foi debitado dela.
 
