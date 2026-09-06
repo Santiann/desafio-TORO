@@ -1,13 +1,229 @@
 :root {
     font-family: system-ui, sans-serif;
-    color-scheme: light dark;
+    font-size: 15px;
+    color: #1b1b1b;
+    background: #f4f4f5;
 }
 
 body {
     margin: 0;
-    padding: 2rem;
+}
+
+h1 {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+h2 {
+    font-size: 1.1rem;
+}
+
+h3 {
+    font-size: 1rem;
+    margin: 0 0 0.75rem;
+}
+
+.app > header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1.5rem;
+    background: #ffffff;
+    border-bottom: 1px solid #d4d4d8;
+}
+
+.app > header nav {
+    display: flex;
+    gap: 1rem;
+}
+
+.app > header nav a {
+    color: #3f3f46;
+    text-decoration: none;
+    padding-bottom: 2px;
+    border-bottom: 2px solid transparent;
+}
+
+.app > header nav a.current {
+    color: #1b1b1b;
+    border-bottom-color: #1b1b1b;
+}
+
+.identity {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+main {
+    padding: 1.5rem;
+    max-width: 1100px;
+}
+
+.login {
+    max-width: 320px;
+    margin: 4rem auto;
+    padding: 1.5rem;
+    background: #ffffff;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+}
+
+.login form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 1rem;
+}
+
+.login button {
+    margin-top: 0.75rem;
+}
+
+.card {
+    background: #ffffff;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.row > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 170px;
+}
+
+.row .checkbox {
+    justify-content: flex-end;
+}
+
+.row .checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+label {
+    font-size: 0.85rem;
+    color: #52525b;
+}
+
+input,
+select {
+    padding: 0.4rem;
+    border: 1px solid #a1a1aa;
+    border-radius: 4px;
+    font: inherit;
+    background: #ffffff;
+}
+
+button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid #52525b;
+    border-radius: 4px;
+    background: #52525b;
+    color: #ffffff;
+    font: inherit;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+table .actions {
+    margin-top: 0;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+}
+
+.balance {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid #d4d4d8;
+    border-radius: 6px;
+}
+
+.balance strong {
+    font-size: 2rem;
+}
+
+.muted {
+    color: #52525b;
+    font-size: 0.85rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    border: 1px solid #d4d4d8;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid #e4e4e7;
+    vertical-align: middle;
+}
+
+th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #52525b;
+}
+
+.feedback {
+    margin: 1rem 0 0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    border: 1px solid;
+}
+
+.feedback p {
+    margin: 0;
+}
+
+.feedback ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.2rem;
 }
 
 .error {
-    color: #b00020;
+    border-color: #b00020;
+    background: #fdecef;
+    color: #7f0016;
+}
+
+.notice {
+    border-color: #1c6b3c;
+    background: #e9f6ee;
+    color: #14512d;
 }
