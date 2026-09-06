@@ -55,7 +55,15 @@ final class HttpException extends RuntimeException
      */
     public static function unprocessable(array $fields): self
     {
-        return new self(422, 'validation_failed', 'dados inválidos', $fields);
+        return self::rejected('validation_failed', 'dados inválidos', $fields);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    public static function rejected(string $errorCode, string $message, array $fields = []): self
+    {
+        return new self(422, $errorCode, $message, $fields);
     }
 
     public function status(): int

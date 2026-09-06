@@ -81,6 +81,27 @@ final class Validator
         return $value;
     }
 
+    public function decimal(string $field, float $min, float $max): string
+    {
+        $value = $this->data[$field] ?? null;
+
+        if (!is_int($value) && !is_float($value)) {
+            $this->errors[$field] = 'deve ser um número decimal';
+
+            return '0.00';
+        }
+
+        $number = (float) $value;
+
+        if (!($number >= $min && $number <= $max)) {
+            $this->errors[$field] = sprintf('deve estar entre %.2F e %.2F', $min, $max);
+
+            return '0.00';
+        }
+
+        return sprintf('%.2F', $number);
+    }
+
     public function boolean(string $field): bool
     {
         $value = $this->data[$field] ?? null;
