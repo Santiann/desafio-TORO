@@ -26,6 +26,19 @@ final class UserRepository
         return $row === false ? null : self::hydrate($row);
     }
 
+    /**
+     * @return User[]
+     */
+    public function sellers(): array
+    {
+        $statement = $this->database->pdo()->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM users WHERE role = ? ORDER BY name'
+        );
+        $statement->execute([Role::Seller->value]);
+
+        return array_map(self::hydrate(...), $statement->fetchAll());
+    }
+
     public function findByEmail(string $email): ?User
     {
         $statement = $this->database->pdo()->prepare(

@@ -3,12 +3,14 @@ import type {
     Campaign,
     CampaignInput,
     CanceledSale,
+    ClosedCampaign,
     Collection,
     LoginResponse,
     Product,
     ProductInput,
     RegisteredSale,
     SaleInput,
+    Seller,
     Wallet,
 } from './types'
 
@@ -126,6 +128,10 @@ export const api = {
     listCampaigns: () => request<Collection<Campaign>>('GET', '/campaigns'),
 
     createCampaign: (input: CampaignInput) => request<Campaign>('POST', '/campaigns', input),
+
+    closeCampaign: (id: number) => request<ClosedCampaign>('POST', `/campaigns/${id}/close`),
+
+    listSellers: () => request<Collection<Seller>>('GET', '/sellers'),
 
     registerSale: (input: SaleInput) => request<RegisteredSale>('POST', '/sales', input),
 

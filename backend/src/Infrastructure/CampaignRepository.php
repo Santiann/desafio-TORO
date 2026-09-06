@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure;
 
 use App\Domain\Campaign;
+use App\Domain\CampaignOutcome;
 use App\Domain\CampaignStatus;
 use App\Support\HttpException;
 
@@ -74,6 +75,19 @@ final class CampaignRepository
         }
 
         return $created;
+    }
+
+    public function close(int $id): ?CampaignOutcome
+    {
+        $statement = $this->database->pdo()->prepare(
+            'UPDATE campaigns SET status = ? WHERE id = ? AND status = ?'
+        );
+        $statement->execute([CampaignStatus::Closed->value, $id, CampaignStatus::Active->value]);
+
+        $applied = $statement->rowCount() === 1;
+        $campaign = $this->findById($id);
+
+        return $campaign === null ? null : new CampaignOutcome($campaign, $applied);
     }
 
     private function shiftUsage(string $sql, int $id, int $points): bool

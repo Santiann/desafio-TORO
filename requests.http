@@ -217,6 +217,46 @@ Authorization: Bearer {{admin}}
   "ends_at": "2026-08-01 00:00:00"
 }
 
+### Campanhas - fecha a campanha criada acima. 200 com "status": "closed"
+
+POST {{host}}/campaigns/{{campaignId}}/close
+Authorization: Bearer {{admin}}
+
+### Fechar de novo - 200 com "already_closed": true, sem efeito
+
+POST {{host}}/campaigns/{{campaignId}}/close
+Authorization: Bearer {{admin}}
+
+### 404 - fechar campanha que não existe
+
+POST {{host}}/campaigns/999999/close
+Authorization: Bearer {{admin}}
+
+### 422 - venda em campanha fechada. As vendas abaixo usam a campanha 1 do seed, que segue ativa
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-CAMPANHA-FECHADA",
+  "campaign_id": {{campaignId}},
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### Vendedores - lista para alimentar o select de lançar venda
+
+GET {{host}}/sellers
+Authorization: Bearer {{admin}}
+
+### 403 - seller listando vendedores
+
+GET {{host}}/sellers
+Authorization: Bearer {{ana}}
+
 ### Venda - lançamento novo. 201, credita 3 x 10 = 30 pontos para a Ana
 
 POST {{host}}/sales

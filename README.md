@@ -57,8 +57,8 @@ Todos usam a senha que você colocou em `SEED_PASSWORD`.
 
 O seed também cria quatro produtos (ids 1 a 4, de 5 a 25 pontos por unidade) e uma
 campanha ativa, id 1, com `budget_total` de 10000 pontos e vigência de ontem até daqui
-a 89 dias. Os ids acima valem em banco novo, e são eles que você digita no formulário
-de lançar venda.
+a 89 dias. Os ids acima valem em banco novo, e são eles que o `requests.http` usa; no
+frontend produto, campanha e vendedor saem todos de select.
 
 O seed é idempotente: ele procura por email, sku e nome antes de inserir, então subir o
 compose de novo não duplica nada nem sobrescreve o que você criou.
@@ -201,6 +201,8 @@ PUT    /products/{id}               admin
 DELETE /products/{id}               admin       inativa, nao apaga
 GET    /campaigns                   admin       traz budget_used e budget_total
 POST   /campaigns                   admin
+POST   /campaigns/{id}/close        admin       idempotente, fecha para novas vendas
+GET    /sellers                     admin       id, nome e email de quem tem papel seller
 POST   /sales                       admin
 POST   /sales/{external_id}/cancel  admin
 
@@ -245,12 +247,8 @@ banco do seed sem sujar.
 Nenhum dos bônus de importação entrou: não há import de vendas por CSV, o admin lança
 uma venda por vez pelo formulário. Paginação e filtro existem só na carteira, que é a
 listagem que cresce sem limite; produtos e campanhas voltam a lista inteira. De
-campanha só dá para criar e listar: não há edição, nem fechar campanha pela API, o que
-significa que mudar `budget_total` depois de criada é `UPDATE` na mão.
-
-Não existe endpoint para listar vendedores, então a tela de lançar venda pede o
-`seller_id` digitado, e é por isso que os ids do seed estão documentados acima. Numa
-próxima passada isso seria um `GET /sellers` e um select.
+campanha dá para criar, listar e fechar, mas não editar: mudar `budget_total` depois
+de criada é `UPDATE` na mão.
 
 A auditoria ficou pela metade: toda venda grava `created_by_user_id`, então dá para
 saber quem lançou o quê consultando o banco, mas não há tabela de log de eventos nem

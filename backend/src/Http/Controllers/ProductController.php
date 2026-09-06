@@ -48,7 +48,7 @@ final class ProductController
 
     public function update(Request $request): Response
     {
-        $id = self::identifier($request);
+        $id = $request->integerParam('id');
 
         $input = new Validator($request->body());
         $name = $input->string('name', self::NAME_MAX);
@@ -68,23 +68,12 @@ final class ProductController
 
     public function destroy(Request $request): Response
     {
-        $product = $this->products->deactivate(self::identifier($request));
+        $product = $this->products->deactivate($request->integerParam('id'));
 
         if ($product === null) {
             throw HttpException::notFound();
         }
 
         return Response::json($product->toArray());
-    }
-
-    private static function identifier(Request $request): int
-    {
-        $id = (string) $request->param('id');
-
-        if (preg_match('/^[1-9][0-9]{0,9}$/', $id) !== 1) {
-            throw HttpException::notFound();
-        }
-
-        return (int) $id;
     }
 }

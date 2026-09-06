@@ -37,6 +37,28 @@ export default function CampaignsPage() {
         void load()
     }, [load])
 
+    async function close(campaign: Campaign) {
+        if (!window.confirm(`fechar a campanha ${campaign.name}? nenhuma venda nova entra depois disso`)) {
+            return
+        }
+
+        setFormError(null)
+        setNotice(null)
+
+        try {
+            const closed = await api.closeCampaign(campaign.id)
+
+            setNotice(
+                closed.already_closed
+                    ? `a campanha ${closed.name} já estava fechada`
+                    : `campanha ${closed.name} fechada`,
+            )
+            await load()
+        } catch (failure) {
+            setFormError(failure)
+        }
+    }
+
     async function submit(event: FormEvent) {
         event.preventDefault()
         setFormError(null)
@@ -135,12 +157,13 @@ export default function CampaignsPage() {
                         <th>disponível</th>
                         <th>vigência</th>
                         <th>situação</th>
+                        <th>ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {campaigns.length === 0 && (
                         <tr>
-                            <td colSpan={6}>nenhuma campanha cadastrada</td>
+                            <td colSpan={7}>nenhuma campanha cadastrada</td>
                         </tr>
                     )}
                     {campaigns.map((campaign) => (
@@ -155,6 +178,15 @@ export default function CampaignsPage() {
                                 {formatDateTime(campaign.starts_at)} a {formatDateTime(campaign.ends_at)}
                             </td>
                             <td>{campaign.status === 'active' ? 'ativa' : 'encerrada'}</td>
+                            <td className="actions">
+                                <button
+                                    type="button"
+                                    onClick={() => void close(campaign)}
+                                    disabled={campaign.status !== 'active'}
+                                >
+                                    fechar
+                                </button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>

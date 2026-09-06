@@ -97,6 +97,21 @@ final class Request
         return $this->params[$name] ?? null;
     }
 
+    /**
+     * Id de rota fora do formato é 404, não 422: quem pede /products/abc está
+     * pedindo uma URL que não existe, não mandando um campo inválido.
+     */
+    public function integerParam(string $name): int
+    {
+        $value = (string) $this->param($name);
+
+        if (preg_match('/^[1-9][0-9]{0,9}$/', $value) !== 1) {
+            throw HttpException::notFound();
+        }
+
+        return (int) $value;
+    }
+
     public function query(string $name): ?string
     {
         return $this->query[$name] ?? null;

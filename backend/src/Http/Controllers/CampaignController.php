@@ -8,6 +8,7 @@ use App\Domain\Campaign;
 use App\Http\Request;
 use App\Http\Response;
 use App\Infrastructure\CampaignRepository;
+use App\Support\HttpException;
 use App\Support\Validator;
 
 final class CampaignController
@@ -46,5 +47,16 @@ final class CampaignController
         $campaign = $this->campaigns->create($name, $budgetTotal, $startsAt, $endsAt);
 
         return Response::json($campaign->toArray(), 201);
+    }
+
+    public function close(Request $request): Response
+    {
+        $outcome = $this->campaigns->close($request->integerParam('id'));
+
+        if ($outcome === null) {
+            throw HttpException::notFound();
+        }
+
+        return Response::json([...$outcome->campaign->toArray(), 'already_closed' => !$outcome->applied]);
     }
 }

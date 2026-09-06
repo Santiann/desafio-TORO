@@ -39,11 +39,19 @@ export type Campaign = {
     created_at: string
 }
 
+export type ClosedCampaign = Campaign & { already_closed: boolean }
+
 export type CampaignInput = {
     name: string
     budget_total: number | null
     starts_at: string
     ends_at: string
+}
+
+export type Seller = {
+    id: number
+    name: string
+    email: string
 }
 
 export type Sale = {

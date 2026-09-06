@@ -16,6 +16,7 @@ use App\Infrastructure\UserRepository;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PingController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SellerController;
 use App\Infrastructure\ProductRepository;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\WalletController;
@@ -45,6 +46,7 @@ $pingController = new PingController();
 $productController = new ProductController($products);
 $campaignController = new CampaignController($campaigns);
 $saleController = new SaleController($scoring);
+$sellerController = new SellerController($users);
 $walletController = new WalletController($walletEntries);
 
 $requireAuth = new RequireAuth($tokens);
@@ -65,6 +67,9 @@ $router->delete('/products/{id}', [$productController, 'destroy'], $adminOnly);
 
 $router->get('/campaigns', [$campaignController, 'index'], $adminOnly);
 $router->post('/campaigns', [$campaignController, 'store'], $adminOnly);
+$router->post('/campaigns/{id}/close', [$campaignController, 'close'], $adminOnly);
+
+$router->get('/sellers', [$sellerController, 'index'], $adminOnly);
 
 $router->post('/sales', [$saleController, 'store'], $adminOnly);
 $router->post('/sales/{external_id}/cancel', [$saleController, 'cancel'], $adminOnly);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, api } from '../api/client'
-import type { Campaign, Product } from '../api/types'
+import type { Campaign, Product, Seller } from '../api/types'
 import { ErrorBox, Notice } from '../components/Feedback'
 import { formatPoints, toDecimal, toInteger } from '../format'
 
@@ -26,6 +26,7 @@ const EMPTY_SALE: SaleForm = {
 export default function SalesPage() {
     const [products, setProducts] = useState<Product[]>([])
     const [campaigns, setCampaigns] = useState<Campaign[]>([])
+    const [sellers, setSellers] = useState<Seller[]>([])
     const [referenceError, setReferenceError] = useState<unknown>(null)
 
     const [saleForm, setSaleForm] = useState<SaleForm>(EMPTY_SALE)
@@ -43,7 +44,11 @@ export default function SalesPage() {
 
         async function load() {
             try {
-                const [productList, campaignList] = await Promise.all([api.listProducts(), api.listCampaigns()])
+                const [productList, campaignList, sellerList] = await Promise.all([
+                    api.listProducts(),
+                    api.listCampaigns(),
+                    api.listSellers(),
+                ])
 
                 if (!active) {
                     return
@@ -51,6 +56,7 @@ export default function SalesPage() {
 
                 setProducts(productList.data)
                 setCampaigns(campaignList.data)
+                setSellers(sellerList.data)
                 setReferenceError(null)
             } catch (failure) {
                 if (active) {
@@ -82,10 +88,12 @@ export default function SalesPage() {
                 unit_value: toDecimal(saleForm.unitValue),
             })
 
+            const seller = sellers.find((candidate) => candidate.id === sale.seller_id)
+
             setSaleNotice(
                 sale.duplicate
                     ? `a venda ${sale.external_id} já tinha sido lançada, nada foi pontuado de novo`
-                    : `venda ${sale.external_id} lançada para o vendedor ${sale.seller_id}`,
+                    : `venda ${sale.external_id} lançada para ${seller?.name ?? `o vendedor ${sale.seller_id}`}`,
             )
 
             if (!sale.duplicate) {
@@ -166,6 +174,7 @@ export default function SalesPage() {
                                 <option key={campaign.id} value={campaign.id}>
                                     {campaign.name} ({formatPoints(campaign.budget_used)}/
                                     {formatPoints(campaign.budget_total)})
+                                    {campaign.status === 'active' ? '' : ' (encerrada)'}
                                 </option>
                             ))}
                         </select>
@@ -190,14 +199,20 @@ export default function SalesPage() {
                     </div>
 
                     <div>
-                        <label htmlFor="seller">id do vendedor</label>
-                        <input
+                        <label htmlFor="seller">vendedor</label>
+                        <select
                             id="seller"
-                            inputMode="numeric"
                             value={saleForm.sellerId}
                             onChange={(event) => setSaleForm({ ...saleForm, sellerId: event.target.value })}
                             required
-                        />
+                        >
+                            <option value="">selecione</option>
+                            {sellers.map((seller) => (
+                                <option key={seller.id} value={seller.id}>
+                                    {seller.name} - {seller.email}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <div>
