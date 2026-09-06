@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Infrastructure\Database;
 use App\Support\Env;
 
-$database = require dirname(__DIR__) . '/bootstrap.php';
+require dirname(__DIR__) . '/vendor/autoload.php';
 
-$pdo = $database->connectWithRetry(30, 2);
+Env::load(dirname(__DIR__));
+
+$pdo = Database::fromEnv()->connectWithRetry(30, 2);
 $passwordHash = password_hash(Env::get('SEED_PASSWORD', 'password123'), PASSWORD_DEFAULT);
 
 $users = [

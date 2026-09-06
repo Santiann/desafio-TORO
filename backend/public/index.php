@@ -2,30 +2,31 @@
 
 declare(strict_types=1);
 
-use App\Infrastructure\Database;
+use App\Http\Request;
+use App\Http\Response;
+use App\Support\HttpException;
 
-$database = require dirname(__DIR__) . '/bootstrap.php';
+set_exception_handler(static function (Throwable $e): void {
+    error_log(sprintf('bootstrap failure: %s: %s', $e::class, $e->getMessage()));
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-
-header('Content-Type: application/json; charset=utf-8');
-
-if ($method === 'GET' && $path === '/health') {
-    try {
-        $database->pdo()->query('SELECT 1');
-
-        http_response_code(200);
-        echo json_encode(['status' => 'ok', 'database' => 'up']);
-    } catch (PDOException $e) {
-        error_log('health check failed: ' . $e->getMessage());
-
-        http_response_code(503);
-        echo json_encode(['status' => 'degraded', 'database' => 'down']);
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
     }
 
-    return;
+    echo '{"error":{"code":"internal_error","message":"erro interno"}}';
+});
+
+$router = require dirname(__DIR__) . '/bootstrap.php';
+
+try {
+    $response = $router->dispatch(Request::fromGlobals());
+} catch (HttpException $e) {
+    $response = Response::error($e);
+} catch (Throwable $e) {
+    error_log(sprintf('unhandled: %s: %s at %s:%d', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
+
+    $response = Response::internalError();
 }
 
-http_response_code(404);
-echo json_encode(['error' => ['code' => 'not_found', 'message' => 'recurso não encontrado']]);
+$response->send();

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use App\Infrastructure\Database;
 use App\Infrastructure\Migrator;
+use App\Support\Env;
 
-$database = require dirname(__DIR__) . '/bootstrap.php';
+require dirname(__DIR__) . '/vendor/autoload.php';
 
-$pdo = $database->connectWithRetry(30, 2);
+Env::load(dirname(__DIR__));
+
+$pdo = Database::fromEnv()->connectWithRetry(30, 2);
 $executed = (new Migrator($pdo, dirname(__DIR__) . '/migrations'))->run();
 
 if ($executed === []) {
