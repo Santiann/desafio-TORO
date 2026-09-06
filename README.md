@@ -245,6 +245,22 @@ docker compose exec api php vendor/bin/phpunit
 Os testes criam e apagam os próprios dados no `tearDown`, então rodam contra o mesmo
 banco do seed sem sujar.
 
+Só que esses 19 rodam em série e nunca disputam o `FOR UPDATE`: eles provam a regra, não
+a corrida. Quem cobre a concorrência é `scripts/budget-race.sh`, que roda do host, com o
+compose de pé, e dispara 50 lançamentos em paralelo com `xargs -P` duas vezes: primeiro
+numa campanha cuja verba comporta só 10 deles, depois todos com o mesmo `external_id`.
+No fim confere no banco que exatamente 10 entraram e 40 voltaram 422, que `budget_used`
+parou no teto e bate com `SUM(credit) - SUM(debit)` da campanha, que a contagem de
+créditos é igual à de vendas aprovadas, que o `external_id` repetido virou um crédito só,
+e que nenhuma campanha do banco ficou com verba estourada ou fora do ledger.
+
+```bash
+./scripts/budget-race.sh
+```
+
+Ele apaga as campanhas que criou quando tudo passa, e as mantém quando alguma invariante
+cai, que é justamente quando você quer abrir o banco e olhar.
+
 ## O que ficou de fora
 
 Nenhum dos bônus de importação entrou: não há import de vendas por CSV, o admin lança
@@ -291,11 +307,11 @@ válidas para verificação, com a nova assinando e a antiga só verificando at�
 última hora de tokens emitidos. Isso torna a troca de segredo uma operação rotineira em
 vez de um incidente, e é o que faz a revogação por vazamento de chave virar viável.
 
-**Teste de carga na trava de verba.** Os testes atuais provam a regra, não a
-concorrência: eles rodam em série e nunca disputam o `FOR UPDATE`. Eu quero uma bateria
-que dispare centenas de lançamentos paralelos numa campanha cuja verba comporta só uma
-fração deles, e depois verifique três invariantes: `budget_used` nunca passou de
-`budget_total`, `budget_used` bate exatamente com `SUM(credit) - SUM(debit)` da
-campanha, e a contagem de créditos é igual à de vendas aprovadas. O mesmo vale para o
-`external_id` repetido em paralelo, que precisa terminar com um crédito só. É o tipo de
-bug que não aparece em teste sequencial e aparece em produção.
+**Teste de carga de verdade, em cima do `budget-race.sh`.** O script já prova que a
+trava segura 50 lançamentos simultâneos, mas é uma rodada só, disparada de uma máquina,
+e passa longe de carga. Faltam três coisas para virar teste de carga. Rodar em CI a cada
+push, para uma regressão na ordem de lock aparecer no pull request e não na entrega.
+Subir a concorrência até o ponto em que o `FOR UPDATE` começa a estourar timeout de
+lock, porque é esse número que diz quantas vendas por segundo uma campanha aguenta, e
+hoje eu não sei qual é. E instrumentar deadlock e retry: sei que não houve nenhum nas
+rodadas que fiz, mas não sei a que distância eu estava do primeiro.
