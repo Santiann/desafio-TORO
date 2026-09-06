@@ -32,6 +32,11 @@ final class Database
         );
     }
 
+    public static function isUniqueViolation(PDOException $e): bool
+    {
+        return $e->getCode() === '23000' && ($e->errorInfo[1] ?? null) === 1062;
+    }
+
     public function pdo(): PDO
     {
         return $this->pdo ??= new PDO($this->dsn(), $this->username, $this->password, [
