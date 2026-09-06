@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use DateTimeImmutable;
+
 final class Validator
 {
+    private const DATE_FORMATS = ['Y-m-d H:i:s', 'Y-m-d\TH:i:s', 'Y-m-d\TH:i'];
+
     /**
      * @var array<string, string>
      */
@@ -43,6 +47,81 @@ final class Validator
         }
 
         return $value;
+    }
+
+    public function pattern(string $field, int $maxLength, string $regex, string $message): string
+    {
+        $value = $this->string($field, $maxLength);
+
+        if ($value === '' || preg_match($regex, $value) === 1) {
+            return $value;
+        }
+
+        $this->errors[$field] = $message;
+
+        return '';
+    }
+
+    public function integer(string $field, int $min, int $max): int
+    {
+        $value = $this->data[$field] ?? null;
+
+        if (!is_int($value)) {
+            $this->errors[$field] = 'deve ser um número inteiro';
+
+            return 0;
+        }
+
+        if ($value < $min || $value > $max) {
+            $this->errors[$field] = "deve estar entre {$min} e {$max}";
+
+            return 0;
+        }
+
+        return $value;
+    }
+
+    public function boolean(string $field): bool
+    {
+        $value = $this->data[$field] ?? null;
+
+        if (!is_bool($value)) {
+            $this->errors[$field] = 'deve ser true ou false';
+
+            return false;
+        }
+
+        return $value;
+    }
+
+    public function dateTime(string $field): string
+    {
+        $value = $this->data[$field] ?? null;
+
+        if (!is_string($value) || trim($value) === '') {
+            $this->errors[$field] = 'campo obrigatório';
+
+            return '';
+        }
+
+        $value = trim($value);
+
+        foreach (self::DATE_FORMATS as $format) {
+            $parsed = DateTimeImmutable::createFromFormat('!' . $format, $value);
+
+            if ($parsed !== false && $parsed->format($format) === $value) {
+                return $parsed->format('Y-m-d H:i:s');
+            }
+        }
+
+        $this->errors[$field] = 'data inválida, use o formato AAAA-MM-DD HH:MM:SS';
+
+        return '';
+    }
+
+    public function fail(string $field, string $message): void
+    {
+        $this->errors[$field] ??= $message;
     }
 
     public function assertValid(): void
