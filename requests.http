@@ -1,0 +1,465 @@
+# Vendeu, Ganhou - coleção de requests
+#
+# Abra no REST Client do VS Code ou no cliente HTTP do IntelliJ e execute de cima para
+# baixo: os logins são requests nomeados e os tokens saem deles por referência, então
+# nada precisa ser copiado à mão.
+#
+# Antes de começar, troque @password pelo valor de SEED_PASSWORD do seu .env.
+#
+# O arquivo é feito para rodar uma vez em banco novo. Numa segunda execução o sku e o
+# external_id abaixo já existem, e as respostas mudam de propósito: o produto responde
+# 422 de sku duplicado e a venda responde 200 com "duplicate": true. Para repetir do
+# zero, mude @sku e @saleRef, ou recrie o banco com
+# docker compose down -v && docker compose up --build
+
+@host = http://localhost:8080
+@password = troque-esta-senha-de-seed
+@sku = NOTA-ESTRUTURADA
+@saleRef = REQ-1001
+
+### Health check, única rota sem token
+
+GET {{host}}/health
+
+### Login do admin
+
+# @name adminLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@toro.test",
+  "password": "{{password}}"
+}
+
+###
+
+@admin = {{adminLogin.response.body.$.token}}
+
+### Login da vendedora Ana (id 2)
+
+# @name anaLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@toro.test",
+  "password": "{{password}}"
+}
+
+###
+
+@ana = {{anaLogin.response.body.$.token}}
+
+### Login do vendedor Bruno (id 3), usado para provar o isolamento de carteira
+
+# @name brunoLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "bruno@toro.test",
+  "password": "{{password}}"
+}
+
+###
+
+@bruno = {{brunoLogin.response.body.$.token}}
+
+### 401 - senha errada. A mensagem não diz se o email existe
+
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@toro.test",
+  "password": "senha-errada"
+}
+
+### 401 - email que não existe. Resposta idêntica à de cima, de propósito
+
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ninguem@toro.test",
+  "password": "{{password}}"
+}
+
+### 422 - login sem os campos obrigatórios
+
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{}
+
+### Produtos - lista
+
+GET {{host}}/products
+Authorization: Bearer {{admin}}
+
+### Produtos - cria
+
+# @name createProduct
+POST {{host}}/products
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Nota Estruturada",
+  "sku": "{{sku}}",
+  "points_per_unit": 40,
+  "active": true
+}
+
+###
+
+@productId = {{createProduct.response.body.$.id}}
+
+### Produtos - edita o que acabou de ser criado
+
+PUT {{host}}/products/{{productId}}
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Nota Estruturada II",
+  "sku": "{{sku}}",
+  "points_per_unit": 45,
+  "active": true
+}
+
+### 422 - sku repetido
+
+POST {{host}}/products
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Outro produto",
+  "sku": "{{sku}}",
+  "points_per_unit": 10,
+  "active": true
+}
+
+### 422 - validação de campo, com o mapa de erros por campo
+
+POST {{host}}/products
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "",
+  "sku": "sku com espaço",
+  "points_per_unit": -5,
+  "active": "sim"
+}
+
+### 400 - corpo que não é um objeto JSON
+
+POST {{host}}/products
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+[1, 2, 3]
+
+### 404 - produto que não existe
+
+PUT {{host}}/products/999999
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Fantasma",
+  "sku": "FANTASMA",
+  "points_per_unit": 1,
+  "active": true
+}
+
+### Produtos - DELETE inativa, não apaga. Veja "active": false na resposta
+
+DELETE {{host}}/products/{{productId}}
+Authorization: Bearer {{admin}}
+
+### Campanhas - lista com budget_used e budget_total
+
+GET {{host}}/campaigns
+Authorization: Bearer {{admin}}
+
+### Campanhas - cria
+
+# @name createCampaign
+POST {{host}}/campaigns
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Campanha de Renda Fixa",
+  "budget_total": 2000,
+  "starts_at": "2026-01-01 00:00:00",
+  "ends_at": "2026-12-31 23:59:59"
+}
+
+###
+
+@campaignId = {{createCampaign.response.body.$.id}}
+
+### 422 - fim antes do início
+
+POST {{host}}/campaigns
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "name": "Campanha invertida",
+  "budget_total": 500,
+  "starts_at": "2026-09-01 00:00:00",
+  "ends_at": "2026-08-01 00:00:00"
+}
+
+### Venda - lançamento novo. 201, credita 3 x 10 = 30 pontos para a Ana
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "{{saleRef}}",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 3,
+  "unit_value": 1500.50
+}
+
+### Venda duplicada - mesmo external_id. 200 com "duplicate": true, sem pontuar de novo
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "{{saleRef}}",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 3,
+  "unit_value": 1500.50
+}
+
+### Confere o efeito na verba: budget_used subiu 30 uma vez só
+
+GET {{host}}/campaigns
+Authorization: Bearer {{admin}}
+
+### 422 budget_exceeded - a venda inteira é rejeitada e nada é gravado
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-ESTOURO",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": 4,
+  "quantity": 1000000,
+  "unit_value": 10.00
+}
+
+### 422 - seller_id que não existe
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-SEM-VENDEDOR",
+  "campaign_id": 1,
+  "seller_id": 999999,
+  "product_id": 1,
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### 422 - o id 1 é o admin, e admin não é vendedor
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-ADMIN-VENDEDOR",
+  "campaign_id": 1,
+  "seller_id": 1,
+  "product_id": 1,
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### 422 - produto inativo. Roda depois do DELETE lá em cima
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-PRODUTO-INATIVO",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": {{productId}},
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### 422 - campanha que não existe
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "REQ-SEM-CAMPANHA",
+  "campaign_id": 999999,
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### 422 - quantidade zero, valor negativo e external_id com caractere proibido
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{admin}}
+
+{
+  "external_id": "tem espaço e acento",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 0,
+  "unit_value": -1
+}
+
+### Carteira da Ana antes do estorno: saldo 30 e o crédito no extrato
+
+GET {{host}}/me/wallet
+Authorization: Bearer {{ana}}
+
+### Cancelamento - estorna os pontos e devolve a verba
+
+POST {{host}}/sales/{{saleRef}}/cancel
+Authorization: Bearer {{admin}}
+
+### Cancelar de novo - 200 com "already_canceled": true, sem débito novo
+
+POST {{host}}/sales/{{saleRef}}/cancel
+Authorization: Bearer {{admin}}
+
+### 404 - cancelar venda que não existe
+
+POST {{host}}/sales/NAO-EXISTE-999/cancel
+Authorization: Bearer {{admin}}
+
+### Verba devolvida: budget_used voltou ao que era
+
+GET {{host}}/campaigns
+Authorization: Bearer {{admin}}
+
+### Carteira da Ana depois do estorno: saldo 0, crédito e débito no extrato
+
+GET {{host}}/me/wallet
+Authorization: Bearer {{ana}}
+
+### Carteira paginada
+
+GET {{host}}/me/wallet?limit=2&offset=0
+Authorization: Bearer {{ana}}
+
+### Carteira do Bruno: o extrato da Ana não aparece aqui
+
+GET {{host}}/me/wallet
+Authorization: Bearer {{bruno}}
+
+### 404 - Ana pedindo a carteira do Bruno. 404 e não 403, para não confirmar que o id existe
+
+GET {{host}}/me/wallet?seller_id=3
+Authorization: Bearer {{ana}}
+
+### Pedir a própria carteira pelo id funciona normalmente
+
+GET {{host}}/me/wallet?seller_id=2
+Authorization: Bearer {{ana}}
+
+### 422 - limit acima do teto de 100
+
+GET {{host}}/me/wallet?limit=999
+Authorization: Bearer {{ana}}
+
+### 401 - sem header Authorization
+
+GET {{host}}/products
+
+### 401 - token que não é um JWT válido
+
+GET {{host}}/products
+Authorization: Bearer nao.e.um.token
+
+### 401 - assinatura adulterada
+
+GET {{host}}/products
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjEsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4ODcwNzQ0NSwiZXhwIjo0MTAyNDQ0ODAwfQ.assinaturaFalsaQueNaoConfere
+
+### 403 - seller em rota de admin
+
+GET {{host}}/products
+Authorization: Bearer {{ana}}
+
+### 403 - seller tentando lançar venda
+
+POST {{host}}/sales
+Content-Type: application/json
+Authorization: Bearer {{ana}}
+
+{
+  "external_id": "REQ-SELLER-PROIBIDO",
+  "campaign_id": 1,
+  "seller_id": 2,
+  "product_id": 1,
+  "quantity": 1,
+  "unit_value": 10.00
+}
+
+### 403 - seller tentando cancelar venda
+
+POST {{host}}/sales/{{saleRef}}/cancel
+Authorization: Bearer {{ana}}
+
+### 403 - seller tentando criar produto
+
+POST {{host}}/products
+Content-Type: application/json
+Authorization: Bearer {{ana}}
+
+{
+  "name": "Produto proibido",
+  "sku": "PROIBIDO",
+  "points_per_unit": 10,
+  "active": true
+}
+
+### 403 - admin na carteira. A carteira é do vendedor, o papel não passa
+
+GET {{host}}/me/wallet
+Authorization: Bearer {{admin}}
+
+### 405 - método que a rota não aceita
+
+DELETE {{host}}/campaigns
+Authorization: Bearer {{admin}}
+
+### 404 - rota que não existe
+
+GET {{host}}/nao-existe
+Authorization: Bearer {{admin}}
