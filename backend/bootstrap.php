@@ -14,7 +14,6 @@ use App\Infrastructure\TokenService;
 use App\Infrastructure\SaleRepository;
 use App\Infrastructure\UserRepository;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\PingController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SellerController;
 use App\Infrastructure\ProductRepository;
@@ -42,7 +41,6 @@ $scoring = new ScoringService($database, $campaigns, $products, $users, $sales, 
 
 $healthController = new HealthController($database);
 $authController = new AuthController(new AuthService($users), $tokens);
-$pingController = new PingController();
 $productController = new ProductController($products);
 $campaignController = new CampaignController($campaigns);
 $saleController = new SaleController($scoring);
@@ -57,8 +55,6 @@ $router = new Router();
 
 $router->get('/health', [$healthController, 'check']);
 $router->post('/auth/login', [$authController, 'login']);
-$router->get('/admin/ping', [$pingController, 'pong'], $adminOnly);
-$router->get('/seller/ping', [$pingController, 'pong'], $sellerOnly);
 
 $router->get('/products', [$productController, 'index'], $adminOnly);
 $router->post('/products', [$productController, 'store'], $adminOnly);
