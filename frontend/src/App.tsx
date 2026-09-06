@@ -1,30 +1,77 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import type { ReactElement } from 'react'
+import { AuthProvider, useAuth } from './auth/AuthContext'
+import type { Role } from './api/types'
+import CampaignsPage from './pages/CampaignsPage'
+import LoginPage from './pages/LoginPage'
+import ProductsPage from './pages/ProductsPage'
+import SalesPage from './pages/SalesPage'
+import WalletPage from './pages/WalletPage'
+import { navigate, useRoute } from './routing'
 
-type Health = {
-    status: string
-    database: string
+type Entry = {
+    path: string
+    label: string
+    render: () => ReactElement
+}
+
+const MENU: Record<Role, Entry[]> = {
+    admin: [
+        { path: '/products', label: 'produtos', render: () => <ProductsPage /> },
+        { path: '/campaigns', label: 'campanhas', render: () => <CampaignsPage /> },
+        { path: '/sales', label: 'vendas', render: () => <SalesPage /> },
+    ],
+    seller: [{ path: '/wallet', label: 'carteira', render: () => <WalletPage /> }],
 }
 
 export default function App() {
-    const [health, setHealth] = useState<Health | null>(null)
-    const [error, setError] = useState<string | null>(null)
+    return (
+        <AuthProvider>
+            <Shell />
+        </AuthProvider>
+    )
+}
+
+function Shell() {
+    const { session, logout } = useAuth()
+    const route = useRoute()
+    const entries = session === null ? [] : MENU[session.user.role]
+    const active = entries.find((entry) => entry.path === route) ?? entries[0]
 
     useEffect(() => {
-        fetch('/api/health')
-            .then((response) => response.json())
-            .then((data: Health) => setHealth(data))
-            .catch(() => setError('não foi possível falar com a API'))
-    }, [])
+        navigate(active?.path ?? '/login')
+    }, [active])
+
+    if (session === null || active === undefined) {
+        return <LoginPage />
+    }
 
     return (
-        <main>
-            <h1>Vendeu, Ganhou</h1>
-            {error && <p className="error">{error}</p>}
-            {health && (
-                <p>
-                    API: {health.status} / banco: {health.database}
-                </p>
-            )}
-        </main>
+        <div className="app">
+            <header>
+                <h1>Vendeu, Ganhou</h1>
+                <nav>
+                    {entries.map((entry) => (
+                        <a
+                            key={entry.path}
+                            href={`#${entry.path}`}
+                            className={entry.path === active.path ? 'current' : undefined}
+                        >
+                            {entry.label}
+                        </a>
+                    ))}
+                </nav>
+                <div className="identity">
+                    <span>
+                        {session.user.name} ({session.user.role === 'admin' ? 'admin' : 'vendedor'})
+                    </span>
+                    <button type="button" onClick={logout}>
+                        sair
+                    </button>
+                </div>
+            </header>
+
+            <main>{active.render()}</main>
+        </div>
     )
 }
