@@ -81,6 +81,31 @@ final class Validator
         return $value;
     }
 
+    public function optionalInteger(string $field, int $default, int $min, int $max): int
+    {
+        $value = $this->data[$field] ?? null;
+
+        if ($value === null) {
+            return $default;
+        }
+
+        if (!is_string($value) || preg_match('/^(0|[1-9][0-9]{0,9})$/', $value) !== 1) {
+            $this->errors[$field] = 'deve ser um número inteiro';
+
+            return $default;
+        }
+
+        $number = (int) $value;
+
+        if ($number < $min || $number > $max) {
+            $this->errors[$field] = "deve estar entre {$min} e {$max}";
+
+            return $default;
+        }
+
+        return $number;
+    }
+
     public function decimal(string $field, float $min, float $max): string
     {
         $value = $this->data[$field] ?? null;

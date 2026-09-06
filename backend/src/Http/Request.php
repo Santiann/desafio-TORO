@@ -41,6 +41,21 @@ final class Request
     }
 
     /**
+     * @param array<string, string> $query
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers
+     */
+    public static function create(
+        string $method,
+        string $path,
+        array $query = [],
+        array $body = [],
+        array $headers = [],
+    ): self {
+        return new self($method, $path, $query, $body, $headers);
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function withParams(array $params): self
@@ -85,6 +100,14 @@ final class Request
     public function query(string $name): ?string
     {
         return $this->query[$name] ?? null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function queryParams(): array
+    {
+        return $this->query;
     }
 
     public function header(string $name): ?string

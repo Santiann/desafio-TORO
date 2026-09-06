@@ -18,6 +18,7 @@ use App\Http\Controllers\PingController;
 use App\Http\Controllers\SaleController;
 use App\Infrastructure\ProductRepository;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\WalletController;
 use App\Infrastructure\CampaignRepository;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CampaignController;
@@ -44,6 +45,7 @@ $pingController = new PingController();
 $productController = new ProductController($products);
 $campaignController = new CampaignController($campaigns);
 $saleController = new SaleController($scoring);
+$walletController = new WalletController($walletEntries);
 
 $requireAuth = new RequireAuth($tokens);
 $adminOnly = [$requireAuth, new RequireRole(Role::Admin)];
@@ -66,5 +68,7 @@ $router->post('/campaigns', [$campaignController, 'store'], $adminOnly);
 
 $router->post('/sales', [$saleController, 'store'], $adminOnly);
 $router->post('/sales/{external_id}/cancel', [$saleController, 'cancel'], $adminOnly);
+
+$router->get('/me/wallet', [$walletController, 'show'], $sellerOnly);
 
 return $router;
