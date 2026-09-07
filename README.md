@@ -8,6 +8,36 @@ PHP 8.3 puro com PDO, MySQL 8.4, React com Vite e TypeScript, tudo em Docker.
 
 Repositório: <https://github.com/Santiann/desafio-TORO>
 
+## Demonstração
+
+O fluxo completo, do login ao extrato do vendedor.
+
+![Tela de login](docs/01-login.png)
+
+O admin cria a campanha com a verba e acompanha quanto dela já foi consumido.
+
+![Campanhas com verba usada e disponível](docs/02-campanha.png)
+
+Lançar uma venda é escolher campanha, produto e vendedor. Os pontos saem de
+`quantity * points_per_unit`.
+
+![Formulário de lançamento de venda](docs/03-venda.png)
+
+Quando os pontos não cabem no que sobrou da campanha, a venda é rejeitada inteira e nada
+é gravado. A mensagem diz quanto a venda vale e quanto ainda havia.
+
+![Venda rejeitada por estouro de verba](docs/04-verba-estourada.png)
+
+A listagem mostra o que foi lançado, filtra por campanha, vendedor e situação, e cancela
+na própria linha. Os pontos de cada venda vêm do ledger, não recalculados.
+
+![Listagem de vendas com filtros](docs/05-vendas.png)
+
+Do lado do vendedor, o saldo é a soma do ledger. O estorno aparece como um débito novo
+em vez de apagar o crédito original.
+
+![Carteira do vendedor com crédito e débito](docs/06-carteira.png)
+
 ## Como subir
 
 Precisa de Docker com Compose v2. Nada de PHP, Composer ou Node na máquina.
