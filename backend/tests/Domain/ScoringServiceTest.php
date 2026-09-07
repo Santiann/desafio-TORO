@@ -209,6 +209,43 @@ final class ScoringServiceTest extends IntegrationTestCase
         $this->assertSame(0, $this->ledgerBalance($campaignId));
     }
 
+    public function testProductWorthZeroPointsSellsAndCancelsWithoutMovingBudget(): void
+    {
+        $campaignId = $this->createCampaign(1000);
+        $productId = $this->createProduct(0);
+
+        $outcome = $this->register('venda-brinde', $campaignId, $productId, 5);
+
+        $this->assertTrue($outcome->applied);
+        $this->assertSame(0, $this->budgetUsed($campaignId));
+        $this->assertSame(1, $this->countEntries($campaignId, WalletEntryType::Credit));
+
+        $canceled = $this->scoring->cancelSale($this->externalId('venda-brinde'));
+
+        $this->assertNotNull($canceled);
+        $this->assertTrue($canceled->applied);
+        $this->assertSame(SaleStatus::Canceled, $canceled->sale->status);
+        $this->assertSame(0, $this->budgetUsed($campaignId));
+        $this->assertSame(1, $this->countEntries($campaignId, WalletEntryType::Debit));
+    }
+
+    public function testCancelStillWorksAfterTheCampaignIsClosed(): void
+    {
+        $campaignId = $this->createCampaign(1000);
+        $productId = $this->createProduct(10);
+        $this->register('venda-campanha-fechada', $campaignId, $productId, 3);
+
+        $this->closeCampaign($campaignId);
+
+        $canceled = $this->scoring->cancelSale($this->externalId('venda-campanha-fechada'));
+
+        $this->assertNotNull($canceled);
+        $this->assertTrue($canceled->applied);
+        $this->assertSame(0, $this->budgetUsed($campaignId));
+        $this->assertSame(0, $this->ledgerBalance($campaignId));
+        $this->assertSame(1, $this->countEntries($campaignId, WalletEntryType::Debit));
+    }
+
     private function register(string $externalId, int $campaignId, int $productId, int $quantity): SaleOutcome
     {
         return $this->scoring->registerSale(

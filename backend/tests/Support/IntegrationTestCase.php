@@ -163,6 +163,12 @@ abstract class IntegrationTestCase extends TestCase
         return (int) $statement->fetchColumn();
     }
 
+    protected function closeCampaign(int $campaignId): void
+    {
+        $statement = $this->pdo->prepare('UPDATE campaigns SET status = ? WHERE id = ?');
+        $statement->execute([CampaignStatus::Closed->value, $campaignId]);
+    }
+
     protected function setProductPoints(int $productId, int $pointsPerUnit): void
     {
         $statement = $this->pdo->prepare('UPDATE products SET points_per_unit = ? WHERE id = ?');
