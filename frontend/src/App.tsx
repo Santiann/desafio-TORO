@@ -6,6 +6,7 @@ import CampaignsPage from './pages/CampaignsPage'
 import LoginPage from './pages/LoginPage'
 import ProductsPage from './pages/ProductsPage'
 import SalesPage from './pages/SalesPage'
+import SellersPage from './pages/SellersPage'
 import WalletPage from './pages/WalletPage'
 import { navigate, useRoute } from './routing'
 
@@ -20,6 +21,7 @@ const MENU: Record<Role, Entry[]> = {
         { path: '/products', label: 'produtos', render: () => <ProductsPage /> },
         { path: '/campaigns', label: 'campanhas', render: () => <CampaignsPage /> },
         { path: '/sales', label: 'vendas', render: () => <SalesPage /> },
+        { path: '/sellers', label: 'vendedores', render: () => <SellersPage /> },
     ],
     seller: [{ path: '/wallet', label: 'carteira', render: () => <WalletPage /> }],
 }

@@ -52,6 +52,7 @@ export type Seller = {
     id: number
     name: string
     email: string
+    balance: number
 }
 
 export type Sale = {
@@ -75,6 +76,23 @@ export type SaleInput = {
     product_id: number | null
     quantity: number | null
     unit_value: number | null
+}
+
+export type SaleSummary = Sale & { points: number | null }
+
+export type SaleFilters = {
+    campaign_id: string
+    seller_id: string
+    status: string
+}
+
+export type Page<T> = {
+    pagination: {
+        limit: number
+        offset: number
+        total: number
+    }
+    data: T[]
 }
 
 export type RegisteredSale = Sale & { duplicate: boolean }

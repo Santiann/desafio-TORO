@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, api } from '../api/client'
-import type { Campaign, Product, Seller } from '../api/types'
+import type { Campaign, Product, SaleFilters, SaleSummary, Seller } from '../api/types'
 import { ErrorBox, Notice } from '../components/Feedback'
-import { formatPoints, toDecimal, toInteger } from '../format'
+import { formatDateTime, formatPoints, toDecimal, toInteger } from '../format'
 
 type SaleForm = {
     externalId: string
@@ -23,6 +23,9 @@ const EMPTY_SALE: SaleForm = {
     unitValue: '0.00',
 }
 
+const NO_FILTERS: SaleFilters = { campaign_id: '', seller_id: '', status: '' }
+const PAGE_SIZE = 20
+
 export default function SalesPage() {
     const [products, setProducts] = useState<Product[]>([])
     const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -39,38 +42,55 @@ export default function SalesPage() {
     const [cancelNotice, setCancelNotice] = useState<string | null>(null)
     const [cancelPending, setCancelPending] = useState(false)
 
-    useEffect(() => {
-        let active = true
+    const [sales, setSales] = useState<SaleSummary[]>([])
+    const [total, setTotal] = useState(0)
+    const [filters, setFilters] = useState<SaleFilters>(NO_FILTERS)
+    const [offset, setOffset] = useState(0)
+    const [listError, setListError] = useState<unknown>(null)
 
-        async function load() {
-            try {
-                const [productList, campaignList, sellerList] = await Promise.all([
-                    api.listProducts(),
-                    api.listCampaigns(),
-                    api.listSellers(),
-                ])
+    const loadReferences = useCallback(async () => {
+        try {
+            const [productList, campaignList, sellerList] = await Promise.all([
+                api.listProducts(),
+                api.listCampaigns(),
+                api.listSellers(),
+            ])
 
-                if (!active) {
-                    return
-                }
-
-                setProducts(productList.data)
-                setCampaigns(campaignList.data)
-                setSellers(sellerList.data)
-                setReferenceError(null)
-            } catch (failure) {
-                if (active) {
-                    setReferenceError(failure)
-                }
-            }
-        }
-
-        void load()
-
-        return () => {
-            active = false
+            setProducts(productList.data)
+            setCampaigns(campaignList.data)
+            setSellers(sellerList.data)
+            setReferenceError(null)
+        } catch (failure) {
+            setReferenceError(failure)
         }
     }, [])
+
+    const loadSales = useCallback(async () => {
+        try {
+            const page = await api.listSales(filters, PAGE_SIZE, offset)
+
+            setSales(page.data)
+            setTotal(page.pagination.total)
+            setListError(null)
+        } catch (failure) {
+            setListError(failure)
+        }
+    }, [filters, offset])
+
+    useEffect(() => {
+        void loadReferences()
+    }, [loadReferences])
+
+    useEffect(() => {
+        void loadSales()
+    }, [loadSales])
+
+    async function refresh() {
+        const campaignList = await api.listCampaigns()
+
+        setCampaigns(campaignList.data)
+        await loadSales()
+    }
 
     async function submitSale(event: FormEvent) {
         event.preventDefault()
@@ -88,21 +108,17 @@ export default function SalesPage() {
                 unit_value: toDecimal(saleForm.unitValue),
             })
 
-            const seller = sellers.find((candidate) => candidate.id === sale.seller_id)
-
             setSaleNotice(
                 sale.duplicate
                     ? `a venda ${sale.external_id} já tinha sido lançada, nada foi pontuado de novo`
-                    : `venda ${sale.external_id} lançada para ${seller?.name ?? `o vendedor ${sale.seller_id}`}`,
+                    : `venda ${sale.external_id} lançada para ${sellerName(sale.seller_id)}`,
             )
 
             if (!sale.duplicate) {
                 setSaleForm({ ...EMPTY_SALE, campaignId: saleForm.campaignId, sellerId: saleForm.sellerId })
             }
 
-            const campaignList = await api.listCampaigns()
-
-            setCampaigns(campaignList.data)
+            await refresh()
         } catch (failure) {
             setSaleError(failure)
         } finally {
@@ -110,14 +126,13 @@ export default function SalesPage() {
         }
     }
 
-    async function submitCancel(event: FormEvent) {
-        event.preventDefault()
+    async function cancel(externalId: string) {
         setCancelError(null)
         setCancelNotice(null)
         setCancelPending(true)
 
         try {
-            const sale = await api.cancelSale(cancelId)
+            const sale = await api.cancelSale(externalId)
 
             setCancelNotice(
                 sale.already_canceled
@@ -126,9 +141,7 @@ export default function SalesPage() {
             )
             setCancelId('')
 
-            const campaignList = await api.listCampaigns()
-
-            setCampaigns(campaignList.data)
+            await refresh()
         } catch (failure) {
             setCancelError(
                 failure instanceof ApiError && failure.status === 404
@@ -139,6 +152,25 @@ export default function SalesPage() {
             setCancelPending(false)
         }
     }
+
+    function sellerName(id: number): string {
+        return sellers.find((seller) => seller.id === id)?.name ?? `vendedor ${id}`
+    }
+
+    function campaignName(id: number): string {
+        return campaigns.find((campaign) => campaign.id === id)?.name ?? `campanha ${id}`
+    }
+
+    function productName(id: number): string {
+        return products.find((product) => product.id === id)?.name ?? `produto ${id}`
+    }
+
+    function changeFilter(patch: Partial<SaleFilters>) {
+        setFilters({ ...filters, ...patch })
+        setOffset(0)
+    }
+
+    const first = sales.length === 0 ? 0 : offset + 1
 
     return (
         <section>
@@ -248,8 +280,14 @@ export default function SalesPage() {
                 <Notice message={saleNotice} />
             </form>
 
-            <form onSubmit={submitCancel} className="card">
-                <h3>cancelar venda</h3>
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault()
+                    void cancel(cancelId)
+                }}
+                className="card"
+            >
+                <h3>cancelar venda por external_id</h3>
 
                 <div className="row">
                     <div>
@@ -273,6 +311,115 @@ export default function SalesPage() {
                 <ErrorBox error={cancelError} />
                 <Notice message={cancelNotice} />
             </form>
+
+            <h3>vendas lançadas</h3>
+
+            <div className="toolbar">
+                <label htmlFor="filter-campaign">campanha</label>
+                <select
+                    id="filter-campaign"
+                    value={filters.campaign_id}
+                    onChange={(event) => changeFilter({ campaign_id: event.target.value })}
+                >
+                    <option value="">todas</option>
+                    {campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                            {campaign.name}
+                        </option>
+                    ))}
+                </select>
+
+                <label htmlFor="filter-seller">vendedor</label>
+                <select
+                    id="filter-seller"
+                    value={filters.seller_id}
+                    onChange={(event) => changeFilter({ seller_id: event.target.value })}
+                >
+                    <option value="">todos</option>
+                    {sellers.map((seller) => (
+                        <option key={seller.id} value={seller.id}>
+                            {seller.name}
+                        </option>
+                    ))}
+                </select>
+
+                <label htmlFor="filter-status">situação</label>
+                <select
+                    id="filter-status"
+                    value={filters.status}
+                    onChange={(event) => changeFilter({ status: event.target.value })}
+                >
+                    <option value="">todas</option>
+                    <option value="approved">aprovadas</option>
+                    <option value="canceled">canceladas</option>
+                </select>
+
+                <button type="button" onClick={() => changeFilter(NO_FILTERS)}>
+                    limpar filtros
+                </button>
+            </div>
+
+            <ErrorBox error={listError} />
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>external_id</th>
+                        <th>campanha</th>
+                        <th>vendedor</th>
+                        <th>produto</th>
+                        <th>qtd</th>
+                        <th>valor unit.</th>
+                        <th>pontos</th>
+                        <th>situação</th>
+                        <th>lançada em</th>
+                        <th>ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {sales.length === 0 && (
+                        <tr>
+                            <td colSpan={10}>nenhuma venda encontrada</td>
+                        </tr>
+                    )}
+                    {sales.map((sale) => (
+                        <tr key={sale.id}>
+                            <td>{sale.external_id}</td>
+                            <td>{campaignName(sale.campaign_id)}</td>
+                            <td>{sellerName(sale.seller_id)}</td>
+                            <td>{productName(sale.product_id)}</td>
+                            <td>{sale.quantity}</td>
+                            <td>{sale.unit_value}</td>
+                            <td>{sale.points === null ? '-' : formatPoints(sale.points)}</td>
+                            <td>{sale.status === 'approved' ? 'aprovada' : 'cancelada'}</td>
+                            <td>{formatDateTime(sale.created_at)}</td>
+                            <td className="actions">
+                                <button
+                                    type="button"
+                                    onClick={() => void cancel(sale.external_id)}
+                                    disabled={sale.status !== 'approved' || cancelPending}
+                                >
+                                    cancelar
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+
+            <div className="toolbar">
+                <button type="button" onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0}>
+                    anterior
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setOffset(offset + PAGE_SIZE)}
+                    disabled={offset + PAGE_SIZE >= total}
+                >
+                    próxima
+                </button>
+                <span>{sales.length === 0 ? 'nenhuma venda' : `${first} a ${offset + sales.length} de ${total}`}</span>
+            </div>
         </section>
     )
 }

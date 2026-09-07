@@ -6,10 +6,13 @@ import type {
     ClosedCampaign,
     Collection,
     LoginResponse,
+    Page,
     Product,
     ProductInput,
     RegisteredSale,
+    SaleFilters,
     SaleInput,
+    SaleSummary,
     Seller,
     Wallet,
 } from './types'
@@ -109,6 +112,18 @@ function toApiError(status: number, payload: unknown): ApiError {
     return new ApiError(status, code, message, fields)
 }
 
+function toQuery(params: Record<string, string | number>): string {
+    const search = new URLSearchParams()
+
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== '') {
+            search.set(key, String(value))
+        }
+    }
+
+    return search.toString()
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
     return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 }
@@ -132,6 +147,9 @@ export const api = {
     closeCampaign: (id: number) => request<ClosedCampaign>('POST', `/campaigns/${id}/close`),
 
     listSellers: () => request<Collection<Seller>>('GET', '/sellers'),
+
+    listSales: (filters: SaleFilters, limit: number, offset: number) =>
+        request<Page<SaleSummary>>('GET', `/sales?${toQuery({ ...filters, limit, offset })}`),
 
     registerSale: (input: SaleInput) => request<RegisteredSale>('POST', '/sales', input),
 
