@@ -49,19 +49,9 @@ make setup
 make up
 ```
 
-`make setup` cria o `.env` gerando os segredos na hora, o que tira o único passo manual
-que trava a primeira execução: o `JWT_SECRET` precisa de 32 bytes ou mais, senão a API
-recusa a subir. Ao final, `make up` imprime as portas e a senha de login. `make help`
-lista o resto (`test`, `race`, `reset`, `logs`, `seed`, `creds`).
-
-Sem `make`, é o caminho longo: `cp .env.example .env`, trocar os placeholders à mão
-(`openssl rand -hex 32` para o `JWT_SECRET`, e `SEED_PASSWORD` é a senha com que você
-entra no frontend) e `docker compose up --build`.
-
 A primeira subida demora, porque o MySQL inicializa o datadir e o healthcheck só libera
 a API quando o banco responde. Frontend em <http://localhost:5173>, API em
-<http://localhost:8080>, MySQL em `127.0.0.1:3306` (loopback só, para você abrir um
-cliente SQL sem publicar o banco). As portas saem do `.env` se alguma estiver ocupada.
+<http://localhost:8080>, MySQL em `127.0.0.1:3306`. As portas saem do `.env` se alguma estiver ocupada.
 
 Para recomeçar do zero: `make reset`.
 
@@ -77,8 +67,6 @@ vendas de exemplo, uma delas já cancelada. As vendas existem para a carteira n�
 vazia: entrando como a Ana logo depois de subir já tem saldo e extrato, e o do Bruno
 mostra um crédito e o débito do estorno. Elas passam pelo `ScoringService`, não por
 `INSERT` direto, então a verba e o ledger do seed saem das mesmas regras da API.
-
-Tudo é idempotente: subir de novo não duplica nada.
 
 ## Schema
 
@@ -149,14 +137,6 @@ no log.
 Um seller pedindo a carteira de outro recebe 404, não 403, porque 403 confirmaria que
 aquele vendedor existe.
 
-Três coisas ficaram de fora conscientemente. **Não há revogação de JWT**: sair da conta
-é evento só de cliente, e um token copiado antes vale até expirar. O que contém o
-estrago é a validade curta. **O token fica em `localStorage`**, o que expõe a XSS; um
-cookie `httpOnly` fecharia essa porta mas abriria CSRF, e a superfície de XSS aqui é
-pequena (React escapa por padrão e não há `dangerouslySetInnerHTML` no projeto). Em
-produção eu inverteria. **Não há rate limit no login**: nada impede alguém de tentar dez
-mil senhas, e o bcrypt só segura a taxa por ser lento.
-
 ## Rotas
 
 ```
@@ -194,7 +174,7 @@ tokens do login.
 ## Testes
 
 ```bash
-make test        # ou: docker compose exec api php vendor/bin/phpunit
+make test
 ```
 
 São 24 testes de integração contra o MySQL do compose, cobrindo o motor e a carteira:
@@ -206,14 +186,13 @@ carteira não enxergando entrada alheia. Eles limpam os próprios dados no `tear
 Só que rodam em série e nunca disputam o `FOR UPDATE`. Quem cobre a corrida é o script:
 
 ```bash
-make race        # ou: ./scripts/budget-race.sh
+make race
 ```
 
 Ele dispara 50 lançamentos em paralelo com `xargs -P` duas vezes, numa campanha que
 comporta 10 e depois todos com o mesmo `external_id`, e confere no banco que a verba
 parou no teto, que ela bate com `SUM(credit) - SUM(debit)`, e que o id repetido virou um
-crédito só. Limpa o que criou quando passa; mantém quando falha, que é quando você quer
-olhar o banco.
+crédito só. Limpa o que criou quando passa; mantém quando falha.
 
 ## O que ficou de fora
 
