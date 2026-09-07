@@ -281,20 +281,7 @@ cai, que é justamente quando você quer abrir o banco e olhar.
 
 ## O que ficou de fora
 
-Nenhum dos bônus de importação entrou: não há import de vendas por CSV, o admin lança
-uma venda por vez pelo formulário. Produtos e campanhas voltam a lista inteira, sem
-paginação, porque são cadastros que não passam de dezenas. De campanha dá para criar,
-listar e fechar, mas não editar: mudar `budget_total` depois de criada é `UPDATE` na
-mão.
-
-A auditoria ficou pela metade: a listagem de vendas mostra o que foi lançado, para
-quem e quantos pontos entraram, e toda venda grava `created_by_user_id`. Mas não há
-tabela de log de eventos, e o nome de quem lançou não aparece na tela, só o id na
-resposta da API.
-
-O frontend roda em modo de desenvolvimento do Vite, com proxy `/api` apontando para o
-nginx. Não há build de produção nem servidor estático no compose, e não há teste de
-frontend.
+Não há import de vendas por CSV. O admin lança uma venda por vez, pelo formulário.
 
 ## O que eu faria com mais tempo
 

@@ -37,11 +37,6 @@ export default function SellersPage() {
         <section>
             <h2>Vendedores</h2>
 
-            <p>
-                Saldo de cada carteira, somado do ledger. O extrato linha a linha só o próprio vendedor
-                enxerga, na tela dele.
-            </p>
-
             <ErrorBox error={error} />
 
             <table>
