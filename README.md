@@ -1,20 +1,16 @@
 # Vendeu, Ganhou
 
 Plataforma enxuta de incentivo de vendas. O admin cadastra produtos e campanhas com
-verba limitada, lança vendas e cancelamentos; o motor de pontuação calcula os pontos,
-respeita a verba da campanha e publica o resultado na carteira do vendedor. A carteira
-guarda apenas pontos, não há saque nem dinheiro real.
+verba limitada e lança vendas; o motor de pontuação calcula os pontos, respeita a verba
+e credita na carteira do vendedor. Só pontos, sem saque nem dinheiro real.
 
-Backend em PHP 8.3 puro (router, validação e persistência escritos na mão, PDO com
-prepared statements), MySQL 8.4, frontend em React com Vite e TypeScript. Tudo sobe
-com `docker compose up`.
+PHP 8.3 puro com PDO, MySQL 8.4, React com Vite e TypeScript, tudo em Docker.
 
 Repositório: <https://github.com/Santiann/desafio-TORO>
 
-## Como subir do zero
+## Como subir
 
-Você precisa de Docker com o plugin Compose v2 (`docker compose version`). Nada de PHP,
-Composer ou Node na máquina: tudo roda dentro dos containers.
+Precisa de Docker com Compose v2. Nada de PHP, Composer ou Node na máquina.
 
 ```bash
 git clone https://github.com/Santiann/desafio-TORO.git vendeu-ganhou
@@ -22,189 +18,112 @@ cd vendeu-ganhou
 cp .env.example .env
 ```
 
-Abra o `.env` e troque os placeholders. Os três que importam:
-
-- `JWT_SECRET` precisa de 32 bytes ou mais, senão a API recusa a subir. Gere com
-  `openssl rand -hex 32`.
-- `DB_PASSWORD` e `DB_ROOT_PASSWORD` são as senhas do MySQL, escolha o que quiser.
-- `SEED_PASSWORD` é a senha que todos os usuários do seed vão receber. É com ela que
-  você entra no frontend.
-
-Depois:
+Abra o `.env` e troque os placeholders. O `JWT_SECRET` precisa de 32 bytes ou mais,
+senão a API recusa a subir (`openssl rand -hex 32`). `SEED_PASSWORD` é a senha com que
+você entra no frontend.
 
 ```bash
 docker compose up --build
 ```
 
-A primeira subida demora: o MySQL inicializa o datadir e o healthcheck só libera a API
-quando o banco responde. O container `api` roda as migrations e o seed no entrypoint,
-então quando ele aparece no log já tem esquema e dados.
+A primeira subida demora, porque o MySQL inicializa o datadir e o healthcheck só libera
+a API quando o banco responde. Frontend em <http://localhost:5173>, API em
+<http://localhost:8080>, MySQL em `127.0.0.1:3306` (loopback só, para você abrir um
+cliente SQL sem publicar o banco). As portas saem do `.env` se alguma estiver ocupada.
 
-O frontend fica em <http://localhost:5173> e é por onde você usa o sistema. A API fica
-em <http://localhost:8080> (nginx na frente do php-fpm) e responde `GET /health`. O
-MySQL fica em `127.0.0.1:3306`, exposto só no loopback para você conseguir abrir um
-cliente SQL sem publicar o banco na rede. As portas saem de `WEB_PORT`, `API_PORT` e
-`DB_PORT_HOST` no `.env` se alguma dessas já estiver ocupada.
+Para recomeçar do zero: `docker compose down -v && docker compose up --build`.
 
-Para começar de novo do zero, com banco vazio: `docker compose down -v && docker compose up --build`.
+## Credenciais
 
-## Credenciais do seed
+Todos com a senha do `SEED_PASSWORD`.
 
-Todos usam a senha que você colocou em `SEED_PASSWORD`.
+- `admin@toro.test` - admin
+- `ana@toro.test`, `bruno@toro.test`, `carla@toro.test` - sellers
 
-- `admin@toro.test` - Admin Toro, papel `admin`, id 1
-- `ana@toro.test` - Ana Souza, papel `seller`, id 2
-- `bruno@toro.test` - Bruno Lima, papel `seller`, id 3
-- `carla@toro.test` - Carla Dias, papel `seller`, id 4
+O seed cria quatro produtos, uma campanha ativa com verba de 10000 pontos e cinco
+vendas de exemplo, uma delas já cancelada. As vendas existem para a carteira não nascer
+vazia: entrando como a Ana logo depois de subir já tem saldo e extrato, e o do Bruno
+mostra um crédito e o débito do estorno. Elas passam pelo `ScoringService`, não por
+`INSERT` direto, então a verba e o ledger do seed saem das mesmas regras da API.
 
-O seed também cria quatro produtos (ids 1 a 4, de 5 a 25 pontos por unidade) e uma
-campanha ativa, id 1, com `budget_total` de 10000 pontos e vigência de ontem até daqui
-a 89 dias. Os ids acima valem em banco novo, e são eles que o `requests.http` usa; no
-frontend produto, campanha e vendedor saem todos de select.
+Tudo é idempotente: subir de novo não duplica nada.
 
-O seed também lança cinco vendas de exemplo, uma delas já cancelada, para a carteira do
-vendedor não nascer vazia: quem entra como `ana@toro.test` logo depois de subir já vê
-saldo e extrato preenchidos, e o extrato do Bruno mostra um crédito e o débito do
-estorno. Elas passam pelo `ScoringService`, não por `INSERT` direto, então o
-`budget_used` e o ledger que o seed produz saem das mesmas regras da API.
+## Schema
 
-O seed é idempotente: ele procura por email, sku, nome e `external_id` antes de
-inserir, então subir o compose de novo não duplica nada nem sobrescreve o que você
-criou.
-
-## Como o schema é criado
-
-Não existe dump de SQL rodado pelo entrypoint do MySQL. O schema vem de migrations
-versionadas em `backend/migrations`, arquivos `.sql` numerados, aplicados em ordem
-alfabética pelo `Migrator` (`backend/src/Infrastructure/Migrator.php`). Ele cria a
-tabela `migrations`, lê o que já foi aplicado e roda só o que falta, registrando cada
-arquivo executado.
-
-Quem dispara isso é o entrypoint do container `api`, antes do php-fpm subir:
-
-```sh
-php /var/www/html/bin/migrate.php
-php /var/www/html/seeds/seed.php
-```
-
-Como as duas etapas são idempotentes, o container pode reiniciar quantas vezes quiser.
-Para adicionar uma tabela basta criar `006_algo.sql` e reiniciar a API.
+Migrations numeradas em `backend/migrations`, aplicadas em ordem pelo `Migrator`, que
+registra o que já rodou numa tabela `migrations`. O entrypoint do container `api` chama
+`bin/migrate.php` e `seeds/seed.php` antes do php-fpm subir. Para adicionar uma tabela,
+crie `006_algo.sql` e reinicie a API.
 
 ## O motor de pontuação
 
-Lançar uma venda aprovada é uma transação só, em `ScoringService::registerSale`. A
-campanha é travada com `SELECT ... FOR UPDATE`, o que serializa dois lançamentos
-simultâneos na mesma campanha e impede que ambos leiam a mesma verba disponível e
-furem o budget. Só depois disso o serviço valida que a campanha está ativa e dentro da
-vigência, que o produto existe e está ativo e que o `seller_id` é mesmo um usuário com
-papel `seller`. Calcula `pontos = quantity * points_per_unit`, insere a venda, grava a
-entrada `credit` no ledger e incrementa `budget_used`. O `UPDATE` da verba carrega
-`WHERE budget_used + ? <= budget_total` como segunda barreira: se ele não afetar
-nenhuma linha, a transação inteira volta atrás.
+Lançar uma venda é uma transação só, em `ScoringService::registerSale`. A campanha é
+travada com `SELECT ... FOR UPDATE` antes de qualquer coisa, o que serializa dois
+lançamentos simultâneos e impede que ambos leiam a mesma verba disponível. Depois vêm
+as validações (campanha ativa e vigente, produto ativo, `seller_id` com papel de
+seller), o cálculo `pontos = quantity * points_per_unit`, o insert da venda, o crédito
+no ledger e o `UPDATE` da verba. Esse `UPDATE` carrega `WHERE budget_used + ? <=
+budget_total` como segunda barreira: se não afetar nenhuma linha, a transação volta
+atrás inteira.
 
-No cancelamento a venda é lida antes da campanha, mas essa leitura é um consistent
-read do InnoDB: ela não adquire lock, serve só para descobrir a que campanha a venda
-pertence. O primeiro lock de escrita continua sendo o da campanha nos dois caminhos, e
-só depois vem o da linha da venda. É essa ordem efetiva, igual dos dois lados, que
-evita deadlock entre uma venda e um cancelamento concorrentes. O estorno lê os pontos
-da entrada de crédito no ledger, não de
-`products.points_per_unit`: o produto pode ter sido editado depois da venda, e
-recalcular devolveria à campanha um valor diferente do que foi debitado dela.
+No cancelamento a venda é lida antes da campanha, mas essa leitura é um consistent read
+do InnoDB e não adquire lock. O primeiro lock de escrita continua sendo o da campanha
+nos dois caminhos, e é essa ordem igual que evita deadlock entre uma venda e um
+cancelamento concorrentes. O estorno lê os pontos do lançamento de crédito, nunca de
+`points_per_unit`: o produto pode ter sido editado depois da venda, e recalcular
+devolveria à campanha um valor diferente do que saiu dela.
 
-A idempotência é do banco, não de uma consulta prévia. `sales.external_id` é `UNIQUE`,
-e o segundo lançamento com o mesmo id estoura violação de chave única, que o serviço
-converte em rollback e devolve a venda que já existia com `"duplicate": true` e status
-200. Não há janela entre um `SELECT` de checagem e o `INSERT`. Cancelar duas vezes tem
-o mesmo formato: o `UPDATE` de cancelamento só casa com vendas ainda `approved`, então
-o segundo pedido não gera débito novo e responde `"already_canceled": true`. Cancelar
-uma venda que não existe é 404 e não escreve nada.
+A idempotência é do banco, não de um `SELECT` prévio. `external_id` é `UNIQUE`, e o
+segundo lançamento estoura violação de chave única, que vira rollback e resposta 200 com
+`"duplicate": true`. Não existe janela entre checar e inserir. Cancelar duas vezes segue
+o mesmo desenho: o `UPDATE` só casa com vendas ainda `approved`, então o segundo pedido
+responde `"already_canceled": true` sem gerar débito novo.
 
-O saldo da carteira é sempre `SUM(credit) - SUM(debit)` sobre `wallet_entries`, lido na
-hora. Não existe coluna de saldo para desencontrar do extrato.
+O saldo é sempre `SUM(credit) - SUM(debit)` lido na hora. Não há coluna de saldo para
+desencontrar do extrato.
 
-## A decisão sobre estouro de verba
+## Estouro de verba: a venda é rejeitada inteira
 
-**A venda é rejeitada inteira.** Se `pontos > budget_total - budget_used`, a API
-responde 422 com o código `budget_exceeded` e uma mensagem que diz quanto a venda vale
-e quanto sobrou na campanha. Nada é gravado: nem a venda, nem entrada no ledger, nem
-alteração de verba.
+Se os pontos não cabem no que sobrou, a API responde 422 com `budget_exceeded` e nada é
+gravado.
 
-Escolhi rejeitar em vez de creditar só o que cabe por três razões. A primeira é de
-domínio: numa plataforma de incentivo, o vendedor confere os pontos contra a venda que
-ele fez. Um crédito parcial e silencioso quebra essa conferência - a venda diz 300
-pontos, a carteira mostra 90, e ninguém no fluxo explica a diferença. Isso vira
-reclamação, não economia de verba. A segunda é de consistência: com crédito parcial, a
-relação `pontos = quantity * points_per_unit` deixa de valer para as linhas do ledger,
-e toda reconciliação futura entre venda e extrato precisa carregar a exceção. A
-terceira é operacional: rejeitar devolve uma decisão para quem tem contexto. O admin vê
-a mensagem, aumenta o `budget_total`, fecha a campanha ou lança a venda em outra, e
-reenvia.
+Preferi isso a creditar só o que cabe porque o vendedor confere os pontos contra a venda
+que fez: um crédito parcial e silencioso quebra essa conferência e vira reclamação, não
+economia. Rejeitar também devolve a decisão para quem tem contexto, e como nada
+persiste, o `external_id` continua livre para reenviar depois de ajustar a verba.
+Creditar parcial seria irreversível, já que não existe endpoint para completar o crédito
+depois.
 
-Esse reenvio funciona justamente porque a rejeição não persiste nada: o `external_id`
-continua livre, e o mesmo lançamento pode ser repetido depois de ajustar a verba sem
-esbarrar na idempotência. Creditar parcial, em contraste, é irreversível pela API -
-não há endpoint para "completar" o crédito depois.
-
-O efeito colateral aceito é que uma campanha pode terminar com sobra de verba que não
-dá para nenhuma venda grande. Considerei melhor sobrar verba do que pagar um vendedor
-pela metade sem avisar.
+O preço é uma campanha poder terminar com sobra que não dá para nenhuma venda grande.
+Achei melhor sobrar verba do que pagar alguém pela metade sem avisar.
 
 ## Segurança
 
-O que está implementado: JWT HS256 com segredo de 32 bytes ou mais vindo do ambiente,
-com o algoritmo fixo no código na hora de decodificar (ler o `alg` do header do token é
-como se monta um algorithm confusion). As claims são `sub`, `role`, `iat` e `exp`, com
-uma hora de validade e sem tolerância. Identidade e papel saem sempre do token; um
-`role` ou `seller_id` que venha no body de rota de seller é ignorado. Senha com
-`password_hash` e `PASSWORD_DEFAULT`, e o `password_verify` roda mesmo quando o email
-não existe, contra um hash fixo, para o tempo de resposta não denunciar quais emails
-estão cadastrados. A resposta de falha é sempre "credenciais inválidas", sem distinguir
-email de senha.
+JWT HS256 com segredo vindo do ambiente e algoritmo fixo no decode, porque ler o `alg`
+do header é como se monta um algorithm confusion. Uma hora de validade, sem tolerância.
+Identidade e papel saem do token, e um `role` ou `seller_id` mandado no body é ignorado.
+No login o `password_verify` roda mesmo quando o email não existe, contra um hash fixo,
+para o tempo de resposta não denunciar quem está cadastrado; a falha é sempre
+"credenciais inválidas".
 
-Nenhum valor vindo do cliente entra em SQL sem placeholder, e o PDO roda com
-`PDO::ATTR_EMULATE_PREPARES => false`, então o prepare é do servidor e não uma
-interpolação disfarçada. Isso inclui `LIMIT` e `OFFSET`, bindados como inteiro depois
-do cast. As quatro consultas que usam `query()` em vez de `prepare()` são as que não
-recebem parâmetro nenhum: as listagens completas de produto e campanha, o `SELECT 1`
-do health e a leitura de migrations aplicadas. O filtro de vendas monta o `WHERE` a
-partir de trechos constantes escolhidos por filtro presente, nunca de texto do
-cliente, e os valores seguem por placeholder. Nenhum endpoint itera o body para montar `INSERT` ou `UPDATE`: cada um
-declara sua lista de campos, o que fecha a porta de mass assignment que transformaria
-um seller em admin. Validação é whitelist com tipo, obrigatoriedade e limite, e a
-rejeição volta 422 com um mapa de campo para mensagem. Erro não tratado vira 500
-genérico com `{"error":{"code":"internal_error"}}`; SQL, stack trace e nome de tabela
-ficam no log. O container do PHP não roda como root, `display_errors` está desligado na
-imagem e o MySQL só escuta em `127.0.0.1`.
+Nenhum valor do cliente entra em SQL sem placeholder, com `EMULATE_PREPARES` em `false`
+para o prepare ser do servidor. Isso vale para `LIMIT` e `OFFSET`, bindados como
+inteiro. As poucas consultas que usam `query()` são as que não recebem parâmetro nenhum.
+O filtro de vendas monta o `WHERE` a partir de trechos constantes, nunca de texto do
+cliente. Nenhum endpoint itera o body para montar `INSERT` ou `UPDATE`, o que fecha a
+porta de mass assignment. Erro não tratado vira 500 genérico, com SQL e stack trace só
+no log.
 
-Ownership da carteira responde 404, e não 403, quando um seller pede a carteira de
-outro. 403 confirmaria que aquele vendedor existe.
+Um seller pedindo a carteira de outro recebe 404, não 403, porque 403 confirmaria que
+aquele vendedor existe.
 
-Três decisões conscientes de deixar de fora, que num sistema real eu não deixaria:
-
-**Não há revogação de JWT.** Sem blocklist, sem refresh token, sem versão de sessão no
-banco. Sair da conta é um evento só de cliente: o frontend joga o token fora, mas um
-token copiado antes disso continua válido até expirar. O que contém o estrago é a
-validade curta de uma hora. A correção real seria um `jti` por token e uma blocklist em
-memória compartilhada consultada a cada request, ou um par access token curto mais
-refresh token com rotação e detecção de reuso. As duas custam infraestrutura de estado
-que o escopo do desafio não pedia, e meia revogação (um blocklist em memória de
-processo, por exemplo) é pior que nenhuma, porque parece proteção e não é.
-
-**O token fica em `localStorage`.** É o lado ruim de um trade-off de dois lados. Em
-`localStorage` qualquer JavaScript que rode na página lê o token, então um XSS vira
-roubo de sessão. Um cookie `httpOnly` fecha essa porta, mas abre CSRF e passa a exigir
-`SameSite`, endpoint de CSRF token e cuidado com o proxy do Vite, que faz o front e a
-API parecerem a mesma origem em desenvolvimento e não em produção. Escolhi
-`localStorage` porque a superfície de XSS aqui é pequena e controlada: o React escapa
-por padrão e não há um único `dangerouslySetInnerHTML` no projeto. Em produção eu
-inverteria: cookie `httpOnly` com `Secure` e `SameSite=Strict`, mais token de CSRF, e
-aceitaria a complexidade.
-
-**Não há rate limit no login.** O `password_verify` contra hash dummy protege contra
-descobrir emails válidos por timing, mas nada impede alguém de tentar dez mil senhas
-para `admin@toro.test`. O bcrypt segura a taxa por ser lento, e só. Faltou limite por
-IP e por email, com bloqueio progressivo, de preferência na borda em vez de dentro do
-PHP.
+Três coisas ficaram de fora conscientemente. **Não há revogação de JWT**: sair da conta
+é evento só de cliente, e um token copiado antes vale até expirar. O que contém o
+estrago é a validade curta. **O token fica em `localStorage`**, o que expõe a XSS; um
+cookie `httpOnly` fecharia essa porta mas abriria CSRF, e a superfície de XSS aqui é
+pequena (React escapa por padrão e não há `dangerouslySetInnerHTML` no projeto). Em
+produção eu inverteria. **Não há rate limit no login**: nada impede alguém de tentar dez
+mil senhas, e o bcrypt só segura a taxa por ser lento.
 
 ## Rotas
 
@@ -218,106 +137,71 @@ PUT    /products/{id}               admin
 DELETE /products/{id}               admin       inativa, nao apaga
 GET    /campaigns                   admin       traz budget_used e budget_total
 POST   /campaigns                   admin
-POST   /campaigns/{id}/close        admin       idempotente, fecha para novas vendas
-GET    /sellers                     admin       id, nome, email e saldo de quem tem papel seller
-GET    /sales                       admin       paginada, filtros de campanha, vendedor e situação
+POST   /campaigns/{id}/close        admin       idempotente
+GET    /sellers                     admin       id, nome, email e saldo
+GET    /sales                       admin       paginada, filtra campanha/vendedor/situacao
 POST   /sales                       admin
 POST   /sales/{external_id}/cancel  admin
 
 GET    /me/wallet                   seller      saldo e extrato paginado do token
 ```
 
-Erro sempre no mesmo formato, com `fields` presente só quando a falha é de validação:
+Erro sempre no mesmo formato, com `fields` só quando a falha é de validação:
 
 ```json
 {"error":{"code":"validation_failed","message":"dados inválidos","fields":{"quantity":"deve estar entre 1 e 1000000"}}}
 ```
 
-Seller batendo em rota de admin recebe 403, e o admin batendo em `/me/wallet` também,
-porque a carteira é do vendedor. Sem token ou com token inválido é 401. O frontend
-trata os dois: 401 limpa a sessão e volta para o login, 403 mostra "sem permissão".
+Seller em rota de admin recebe 403, e o admin em `/me/wallet` também, porque a carteira é
+do vendedor. Sem token é 401. O frontend trata os dois: 401 limpa a sessão e volta ao
+login, 403 mostra "sem permissão".
 
-O arquivo `requests.http` na raiz cobre todos os endpoints, incluindo os casos de 401,
-403, 404, 422 e o reenvio de venda duplicada. Ele encadeia os tokens do login, então dá
-para abrir no REST Client do VS Code ou no cliente HTTP do IntelliJ e ir de cima para
-baixo.
+O `requests.http` na raiz cobre todos os endpoints e os casos de erro, encadeando os
+tokens do login.
 
 ## Testes
-
-São 24 testes de integração que rodam contra o MySQL do compose, cobrindo o motor de
-pontuação, a listagem de vendas e a carteira: crédito e consumo de verba, rejeição por estouro, mesmo
-`external_id` creditado uma vez só, estorno com devolução de verba, cancelamento
-repetido sem débito novo, cancelamento de venda inexistente, verba devolvida sendo
-reutilizável, campanha fora de vigência, produto inativo, estorno usando o ledger em
-vez do valor atual do produto, produto de zero ponto que vende e estorna sem mover a
-verba, cancelamento funcionando depois da campanha fechada, os filtros da listagem de
-vendas estreitando lista e contagem juntos, e a carteira não enxergando entrada de
-outro vendedor.
-
-Com o compose de pé:
 
 ```bash
 docker compose exec api php vendor/bin/phpunit
 ```
 
-Os testes criam e apagam os próprios dados no `tearDown`, então rodam contra o mesmo
-banco do seed sem sujar.
+São 24 testes de integração contra o MySQL do compose, cobrindo o motor e a carteira:
+verba consumida e devolvida, rejeição por estouro, `external_id` creditado uma vez só,
+cancelamento repetido sem débito novo, estorno lendo o ledger em vez do produto atual,
+produto de zero ponto, campanha fechada ou fora de vigência, os filtros da listagem, e a
+carteira não enxergando entrada alheia. Eles limpam os próprios dados no `tearDown`.
 
-Só que esses 24 rodam em série e nunca disputam o `FOR UPDATE`: eles provam a regra, não
-a corrida. Quem cobre a concorrência é `scripts/budget-race.sh`, que roda do host, com o
-compose de pé, e dispara 50 lançamentos em paralelo com `xargs -P` duas vezes: primeiro
-numa campanha cuja verba comporta só 10 deles, depois todos com o mesmo `external_id`.
-No fim confere no banco que exatamente 10 entraram e 40 voltaram 422, que `budget_used`
-parou no teto e bate com `SUM(credit) - SUM(debit)` da campanha, que a contagem de
-créditos é igual à de vendas aprovadas, que o `external_id` repetido virou um crédito só,
-e que nenhuma campanha do banco ficou com verba estourada ou fora do ledger.
+Só que rodam em série e nunca disputam o `FOR UPDATE`. Quem cobre a corrida é o script:
 
 ```bash
 ./scripts/budget-race.sh
 ```
 
-Ele apaga as campanhas que criou quando tudo passa, e as mantém quando alguma invariante
-cai, que é justamente quando você quer abrir o banco e olhar.
+Ele dispara 50 lançamentos em paralelo com `xargs -P` duas vezes, numa campanha que
+comporta 10 e depois todos com o mesmo `external_id`, e confere no banco que a verba
+parou no teto, que ela bate com `SUM(credit) - SUM(debit)`, e que o id repetido virou um
+crédito só. Limpa o que criou quando passa; mantém quando falha, que é quando você quer
+olhar o banco.
 
 ## O que ficou de fora
 
 Não há import de vendas por CSV. O admin lança uma venda por vez, pelo formulário.
 
-## O que eu faria com mais tempo
+## Com mais tempo
 
-Uma **fila para importação em massa** seria a primeira coisa. O CSV de vendas do mês
-não cabe num request HTTP: lançar dez mil vendas em série segura a conexão por minutos
-e, pior, cada lançamento pega o lock da campanha, então o import inteiro vira uma fila
-implícita disputando a mesma linha. O desenho seria receber o arquivo, gravar as linhas
-como pendentes e devolver 202 com um id de lote; um worker consumindo a fila lança uma
-a uma, reaproveitando o `external_id` de cada linha como chave de idempotência, o que
-deixa o lote inteiro seguro para reprocessar. No fim, um relatório do lote com o que
-entrou e o que foi rejeitado por verba ou validação.
+**Fila para importação em massa.** Dez mil vendas em série não cabem num request, e cada
+uma pega o lock da campanha. Receberia o arquivo, devolveria 202 com um id de lote e
+deixaria um worker consumindo, usando o `external_id` de cada linha como chave de
+idempotência para o lote inteiro ser seguro de reprocessar.
 
-**Cache do saldo invalidado por evento.** Hoje todo `GET /me/wallet` faz um `SUM` sobre
-o ledger do vendedor. Com o índice em `(seller_id, created_at)` isso aguenta bem o
-volume do desafio, mas o custo cresce linearmente com o histórico e o extrato é a tela
-que o vendedor mais abre. Eu guardaria o saldo materializado por vendedor, escrito
-dentro da mesma transação que grava a entrada no ledger, com o ledger continuando como
-fonte da verdade e um job de reconciliação comparando os dois. Cache invalidado por
-evento de escrita, nunca por TTL: saldo errado por alguns segundos é pior que saldo
-lento.
+**Cache do saldo.** Hoje todo `GET /me/wallet` faz um `SUM` no ledger. Guardaria o saldo
+materializado, escrito na mesma transação do lançamento, com o ledger seguindo como
+fonte da verdade e um job de reconciliação. Invalidado por evento, nunca por TTL.
 
-**Rate limit no login**, pelo motivo da seção de segurança. Contador por IP e por email
-com janela deslizante, bloqueio progressivo, e de preferência no nginx, para a
-tentativa nem chegar ao PHP e ao bcrypt.
+**Rate limit no login**, no nginx, para a tentativa nem chegar ao bcrypt.
 
-**Rotação do segredo do JWT.** Hoje o segredo é um só e trocá-lo derruba todo mundo na
-hora. Eu passaria a assinar com um `kid` no header e manter um conjunto de chaves
-válidas para verificação, com a nova assinando e a antiga só verificando até expirar a
-última hora de tokens emitidos. Isso torna a troca de segredo uma operação rotineira em
-vez de um incidente, e é o que faz a revogação por vazamento de chave virar viável.
+**Rotação do segredo do JWT**, assinando com `kid` e mantendo um conjunto de chaves
+válidas, para trocar o segredo virar rotina em vez de incidente.
 
-**Teste de carga de verdade, em cima do `budget-race.sh`.** O script já prova que a
-trava segura 50 lançamentos simultâneos, mas é uma rodada só, disparada de uma máquina,
-e passa longe de carga. Faltam três coisas para virar teste de carga. Rodar em CI a cada
-push, para uma regressão na ordem de lock aparecer no pull request e não na entrega.
-Subir a concorrência até o ponto em que o `FOR UPDATE` começa a estourar timeout de
-lock, porque é esse número que diz quantas vendas por segundo uma campanha aguenta, e
-hoje eu não sei qual é. E instrumentar deadlock e retry: sei que não houve nenhum nas
-rodadas que fiz, mas não sei a que distância eu estava do primeiro.
+**Teste de carga em cima do `budget-race.sh`**, rodando em CI e subindo a concorrência
+até achar onde o `FOR UPDATE` começa a estourar timeout. Hoje eu não sei esse número.
