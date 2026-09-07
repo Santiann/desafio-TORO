@@ -53,6 +53,26 @@ final class WalletEntryRepository
         return (int) $statement->fetchColumn();
     }
 
+    /**
+     * @return array<int, int>
+     */
+    public function balancesBySeller(): array
+    {
+        $statement = $this->database->pdo()->prepare(
+            'SELECT seller_id, COALESCE(SUM(CASE WHEN type = ? THEN points ELSE -points END), 0) AS balance'
+            . ' FROM wallet_entries GROUP BY seller_id'
+        );
+        $statement->execute([WalletEntryType::Credit->value]);
+
+        $balances = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $balances[(int) $row['seller_id']] = (int) $row['balance'];
+        }
+
+        return $balances;
+    }
+
     public function countBySeller(int $sellerId): int
     {
         $statement = $this->database->pdo()->prepare(

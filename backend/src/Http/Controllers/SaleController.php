@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\SaleStatus;
+use App\Domain\SaleSummary;
 use App\Domain\ScoringException;
 use App\Domain\ScoringService;
 use App\Http\Request;
 use App\Http\Response;
+use App\Infrastructure\SaleRepository;
 use App\Support\HttpException;
 use App\Support\Validator;
 
@@ -19,9 +22,39 @@ final class SaleController
     private const ID_MAX = 4294967295;
     private const QUANTITY_MAX = 1000000;
     private const UNIT_VALUE_MAX = 9999999999.99;
+    private const LIMIT_DEFAULT = 20;
+    private const LIMIT_MAX = 100;
+    private const OFFSET_MAX = 1000000;
 
-    public function __construct(private readonly ScoringService $scoring)
+    public function __construct(
+        private readonly ScoringService $scoring,
+        private readonly SaleRepository $sales,
+    ) {
+    }
+
+    public function index(Request $request): Response
     {
+        $input = new Validator($request->queryParams());
+        $campaignId = $input->nullableInteger('campaign_id', 1, self::ID_MAX);
+        $sellerId = $input->nullableInteger('seller_id', 1, self::ID_MAX);
+        $status = $input->nullableChoice('status', array_column(SaleStatus::cases(), 'value'));
+        $limit = $input->optionalInteger('limit', self::LIMIT_DEFAULT, 1, self::LIMIT_MAX);
+        $offset = $input->optionalInteger('offset', 0, 0, self::OFFSET_MAX);
+        $input->assertValid();
+
+        $saleStatus = $status === null ? null : SaleStatus::from($status);
+
+        return Response::json([
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'total' => $this->sales->countMatching($campaignId, $sellerId, $saleStatus),
+            ],
+            'data' => array_map(
+                static fn (SaleSummary $summary): array => $summary->toArray(),
+                $this->sales->search($campaignId, $sellerId, $saleStatus, $limit, $offset),
+            ),
+        ]);
     }
 
     public function store(Request $request): Response

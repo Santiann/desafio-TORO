@@ -106,6 +106,51 @@ final class Validator
         return $number;
     }
 
+    public function nullableInteger(string $field, int $min, int $max): ?int
+    {
+        $value = $this->data[$field] ?? null;
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_string($value) || preg_match('/^(0|[1-9][0-9]{0,9})$/', $value) !== 1) {
+            $this->errors[$field] = 'deve ser um número inteiro';
+
+            return null;
+        }
+
+        $number = (int) $value;
+
+        if ($number < $min || $number > $max) {
+            $this->errors[$field] = "deve estar entre {$min} e {$max}";
+
+            return null;
+        }
+
+        return $number;
+    }
+
+    /**
+     * @param string[] $choices
+     */
+    public function nullableChoice(string $field, array $choices): ?string
+    {
+        $value = $this->data[$field] ?? null;
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_string($value) || !in_array($value, $choices, true)) {
+            $this->errors[$field] = 'deve ser um de: ' . implode(', ', $choices);
+
+            return null;
+        }
+
+        return $value;
+    }
+
     public function decimal(string $field, float $min, float $max): string
     {
         $value = $this->data[$field] ?? null;

@@ -43,8 +43,8 @@ $healthController = new HealthController($database);
 $authController = new AuthController(new AuthService($users), $tokens);
 $productController = new ProductController($products);
 $campaignController = new CampaignController($campaigns);
-$saleController = new SaleController($scoring);
-$sellerController = new SellerController($users);
+$saleController = new SaleController($scoring, $sales);
+$sellerController = new SellerController($users, $walletEntries);
 $walletController = new WalletController($walletEntries);
 
 $requireAuth = new RequireAuth($tokens);
@@ -67,6 +67,7 @@ $router->post('/campaigns/{id}/close', [$campaignController, 'close'], $adminOnl
 
 $router->get('/sellers', [$sellerController, 'index'], $adminOnly);
 
+$router->get('/sales', [$saleController, 'index'], $adminOnly);
 $router->post('/sales', [$saleController, 'store'], $adminOnly);
 $router->post('/sales/{external_id}/cancel', [$saleController, 'cancel'], $adminOnly);
 

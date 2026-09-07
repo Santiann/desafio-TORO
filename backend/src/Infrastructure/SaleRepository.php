@@ -7,12 +7,18 @@ namespace App\Infrastructure;
 use App\Domain\DuplicateExternalIdException;
 use App\Domain\Sale;
 use App\Domain\SaleStatus;
+use App\Domain\SaleSummary;
+use App\Domain\WalletEntryType;
+use PDO;
 use PDOException;
 
 final class SaleRepository
 {
     private const COLUMNS = 'id, external_id, campaign_id, seller_id, product_id, quantity,'
         . ' unit_value, status, created_by_user_id, created_at, canceled_at';
+
+    private const LIST_COLUMNS = 's.id, s.external_id, s.campaign_id, s.seller_id, s.product_id,'
+        . ' s.quantity, s.unit_value, s.status, s.created_by_user_id, s.created_at, s.canceled_at';
 
     public function __construct(private readonly Database $database)
     {
@@ -77,6 +83,86 @@ final class SaleRepository
         }
 
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * @return SaleSummary[]
+     */
+    public function search(
+        ?int $campaignId,
+        ?int $sellerId,
+        ?SaleStatus $status,
+        int $limit,
+        int $offset,
+    ): array {
+        [$where, $bindings] = self::filters($campaignId, $sellerId, $status);
+
+        // Os pontos saem do lançamento de crédito, não de quantity * points_per_unit: o
+        // produto pode ter sido editado depois da venda, e a listagem tem que mostrar o
+        // que de fato entrou na carteira do vendedor.
+        $statement = $this->database->pdo()->prepare(
+            'SELECT ' . self::LIST_COLUMNS
+            . ', (SELECT w.points FROM wallet_entries w WHERE w.sale_id = s.id AND w.type = :credit LIMIT 1) AS points'
+            . ' FROM sales s' . $where
+            . ' ORDER BY s.created_at DESC, s.id DESC LIMIT :limit OFFSET :offset'
+        );
+
+        $statement->bindValue(':credit', WalletEntryType::Credit->value);
+
+        foreach ($bindings as $name => $value) {
+            $statement->bindValue(':' . $name, $value);
+        }
+
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $statement->execute();
+
+        return array_map(
+            static fn (array $row): SaleSummary => new SaleSummary(
+                self::hydrate($row),
+                $row['points'] === null ? null : (int) $row['points'],
+            ),
+            $statement->fetchAll(),
+        );
+    }
+
+    public function countMatching(?int $campaignId, ?int $sellerId, ?SaleStatus $status): int
+    {
+        [$where, $bindings] = self::filters($campaignId, $sellerId, $status);
+
+        $statement = $this->database->pdo()->prepare('SELECT COUNT(*) FROM sales s' . $where);
+        $statement->execute($bindings);
+
+        return (int) $statement->fetchColumn();
+    }
+
+    /**
+     * O SQL montado aqui só concatena trechos constantes escolhidos por filtro presente;
+     * todo valor que veio do cliente entra por placeholder.
+     *
+     * @return array{string, array<string, int|string>}
+     */
+    private static function filters(?int $campaignId, ?int $sellerId, ?SaleStatus $status): array
+    {
+        $conditions = [];
+        $bindings = [];
+
+        if ($campaignId !== null) {
+            $conditions[] = 's.campaign_id = :campaign_id';
+            $bindings['campaign_id'] = $campaignId;
+        }
+
+        if ($sellerId !== null) {
+            $conditions[] = 's.seller_id = :seller_id';
+            $bindings['seller_id'] = $sellerId;
+        }
+
+        if ($status !== null) {
+            $conditions[] = 's.status = :status';
+            $bindings['status'] = $status->value;
+        }
+
+        return [$conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions), $bindings];
     }
 
     public function markCanceled(string $externalId): bool
