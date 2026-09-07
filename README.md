@@ -9,13 +9,15 @@ Backend em PHP 8.3 puro (router, validação e persistência escritos na mão, P
 prepared statements), MySQL 8.4, frontend em React com Vite e TypeScript. Tudo sobe
 com `docker compose up`.
 
+Repositório: <https://github.com/Santiann/desafio-TORO>
+
 ## Como subir do zero
 
 Você precisa de Docker com o plugin Compose v2 (`docker compose version`). Nada de PHP,
 Composer ou Node na máquina: tudo roda dentro dos containers.
 
 ```bash
-git clone <url-do-repositorio> vendeu-ganhou
+git clone https://github.com/Santiann/desafio-TORO.git vendeu-ganhou
 cd vendeu-ganhou
 cp .env.example .env
 ```
@@ -60,8 +62,15 @@ campanha ativa, id 1, com `budget_total` de 10000 pontos e vigência de ontem at
 a 89 dias. Os ids acima valem em banco novo, e são eles que o `requests.http` usa; no
 frontend produto, campanha e vendedor saem todos de select.
 
-O seed é idempotente: ele procura por email, sku e nome antes de inserir, então subir o
-compose de novo não duplica nada nem sobrescreve o que você criou.
+O seed também lança cinco vendas de exemplo, uma delas já cancelada, para a carteira do
+vendedor não nascer vazia: quem entra como `ana@toro.test` logo depois de subir já vê
+saldo e extrato preenchidos, e o extrato do Bruno mostra um crédito e o débito do
+estorno. Elas passam pelo `ScoringService`, não por `INSERT` direto, então o
+`budget_used` e o ledger que o seed produz saem das mesmas regras da API.
+
+O seed é idempotente: ele procura por email, sku, nome e `external_id` antes de
+inserir, então subir o compose de novo não duplica nada nem sobrescreve o que você
+criou.
 
 ## Como o schema é criado
 
@@ -152,9 +161,14 @@ não existe, contra um hash fixo, para o tempo de resposta não denunciar quais 
 estão cadastrados. A resposta de falha é sempre "credenciais inválidas", sem distinguir
 email de senha.
 
-Toda query usa prepared statement com `PDO::ATTR_EMULATE_PREPARES => false`, inclusive
-`LIMIT` e `OFFSET`, que são bindados como inteiro depois do cast em vez de
-interpolados. Nenhum endpoint itera o body para montar `INSERT` ou `UPDATE`: cada um
+Nenhum valor vindo do cliente entra em SQL sem placeholder, e o PDO roda com
+`PDO::ATTR_EMULATE_PREPARES => false`, então o prepare é do servidor e não uma
+interpolação disfarçada. Isso inclui `LIMIT` e `OFFSET`, bindados como inteiro depois
+do cast. As quatro consultas que usam `query()` em vez de `prepare()` são as que não
+recebem parâmetro nenhum: as listagens completas de produto e campanha, o `SELECT 1`
+do health e a leitura de migrations aplicadas. O filtro de vendas monta o `WHERE` a
+partir de trechos constantes escolhidos por filtro presente, nunca de texto do
+cliente, e os valores seguem por placeholder. Nenhum endpoint itera o body para montar `INSERT` ou `UPDATE`: cada um
 declara sua lista de campos, o que fecha a porta de mass assignment que transformaria
 um seller em admin. Validação é whitelist com tipo, obrigatoriedade e limite, e a
 rejeição volta 422 com um mapa de campo para mensagem. Erro não tratado vira 500
@@ -205,7 +219,8 @@ DELETE /products/{id}               admin       inativa, nao apaga
 GET    /campaigns                   admin       traz budget_used e budget_total
 POST   /campaigns                   admin
 POST   /campaigns/{id}/close        admin       idempotente, fecha para novas vendas
-GET    /sellers                     admin       id, nome e email de quem tem papel seller
+GET    /sellers                     admin       id, nome, email e saldo de quem tem papel seller
+GET    /sales                       admin       paginada, filtros de campanha, vendedor e situação
 POST   /sales                       admin
 POST   /sales/{external_id}/cancel  admin
 
@@ -229,12 +244,15 @@ baixo.
 
 ## Testes
 
-São 19 testes de integração que rodam contra o MySQL do compose, cobrindo o motor de
-pontuação e a carteira: crédito e consumo de verba, rejeição por estouro, mesmo
+São 24 testes de integração que rodam contra o MySQL do compose, cobrindo o motor de
+pontuação, a listagem de vendas e a carteira: crédito e consumo de verba, rejeição por estouro, mesmo
 `external_id` creditado uma vez só, estorno com devolução de verba, cancelamento
 repetido sem débito novo, cancelamento de venda inexistente, verba devolvida sendo
 reutilizável, campanha fora de vigência, produto inativo, estorno usando o ledger em
-vez do valor atual do produto, e a carteira não enxergando entrada de outro vendedor.
+vez do valor atual do produto, produto de zero ponto que vende e estorna sem mover a
+verba, cancelamento funcionando depois da campanha fechada, os filtros da listagem de
+vendas estreitando lista e contagem juntos, e a carteira não enxergando entrada de
+outro vendedor.
 
 Com o compose de pé:
 
@@ -245,7 +263,7 @@ docker compose exec api php vendor/bin/phpunit
 Os testes criam e apagam os próprios dados no `tearDown`, então rodam contra o mesmo
 banco do seed sem sujar.
 
-Só que esses 19 rodam em série e nunca disputam o `FOR UPDATE`: eles provam a regra, não
+Só que esses 24 rodam em série e nunca disputam o `FOR UPDATE`: eles provam a regra, não
 a corrida. Quem cobre a concorrência é `scripts/budget-race.sh`, que roda do host, com o
 compose de pé, e dispara 50 lançamentos em paralelo com `xargs -P` duas vezes: primeiro
 numa campanha cuja verba comporta só 10 deles, depois todos com o mesmo `external_id`.
@@ -264,14 +282,15 @@ cai, que é justamente quando você quer abrir o banco e olhar.
 ## O que ficou de fora
 
 Nenhum dos bônus de importação entrou: não há import de vendas por CSV, o admin lança
-uma venda por vez pelo formulário. Paginação e filtro existem só na carteira, que é a
-listagem que cresce sem limite; produtos e campanhas voltam a lista inteira. De
-campanha dá para criar, listar e fechar, mas não editar: mudar `budget_total` depois
-de criada é `UPDATE` na mão.
+uma venda por vez pelo formulário. Produtos e campanhas voltam a lista inteira, sem
+paginação, porque são cadastros que não passam de dezenas. De campanha dá para criar,
+listar e fechar, mas não editar: mudar `budget_total` depois de criada é `UPDATE` na
+mão.
 
-A auditoria ficou pela metade: toda venda grava `created_by_user_id`, então dá para
-saber quem lançou o quê consultando o banco, mas não há tabela de log de eventos nem
-tela que mostre isso.
+A auditoria ficou pela metade: a listagem de vendas mostra o que foi lançado, para
+quem e quantos pontos entraram, e toda venda grava `created_by_user_id`. Mas não há
+tabela de log de eventos, e o nome de quem lançou não aparece na tela, só o id na
+resposta da API.
 
 O frontend roda em modo de desenvolvimento do Vite, com proxy `/api` apontando para o
 nginx. Não há build de produção nem servidor estático no compose, e não há teste de

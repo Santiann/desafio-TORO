@@ -247,7 +247,7 @@ Authorization: Bearer {{admin}}
   "unit_value": 10.00
 }
 
-### Vendedores - lista para alimentar o select de lançar venda
+### Vendedores - lista com o saldo da carteira de cada um, somado do ledger
 
 GET {{host}}/sellers
 Authorization: Bearer {{admin}}
@@ -255,6 +255,36 @@ Authorization: Bearer {{admin}}
 ### 403 - seller listando vendedores
 
 GET {{host}}/sellers
+Authorization: Bearer {{ana}}
+
+### Vendas - lista paginada, mais recentes primeiro. O campo points vem do ledger
+
+GET {{host}}/sales
+Authorization: Bearer {{admin}}
+
+### Vendas - filtro por campanha, vendedor e situação, combináveis
+
+GET {{host}}/sales?campaign_id=1&seller_id=2&status=approved
+Authorization: Bearer {{admin}}
+
+### Vendas - só as canceladas. Repare que points segue mostrando o crédito original
+
+GET {{host}}/sales?status=canceled
+Authorization: Bearer {{admin}}
+
+### Vendas - paginação
+
+GET {{host}}/sales?limit=2&offset=2
+Authorization: Bearer {{admin}}
+
+### 422 - situação que não existe, com o mapa de campos
+
+GET {{host}}/sales?status=aprovada
+Authorization: Bearer {{admin}}
+
+### 403 - seller listando vendas
+
+GET {{host}}/sales
 Authorization: Bearer {{ana}}
 
 ### Venda - lançamento novo. 201, credita 3 x 10 = 30 pontos para a Ana
